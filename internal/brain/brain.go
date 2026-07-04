@@ -94,7 +94,7 @@ func (c *Client) chat(userMsg message) (string, error) {
 	body, _ := json.Marshal(map[string]any{
 		"model":      c.model,
 		"messages":   msgs,
-		"max_tokens": 150,
+		"max_tokens": 60,
 	})
 
 	req, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewReader(body))

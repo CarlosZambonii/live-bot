@@ -54,6 +54,7 @@ func (c *Client) Transcribe(wavPath string) (string, error) {
 		return "", err
 	}
 	_ = w.WriteField("model", c.model)
+	_ = w.WriteField("language", "pt")
 	w.Close()
 
 	req, _ := http.NewRequest("POST", c.baseURL+"/transcribe", &buf)

@@ -75,7 +75,7 @@ func (c *Client) Speak(text string) error {
 		if st.Status == "failed" || st.Status == "error" {
 			return fmt.Errorf("voicebox: geração falhou: %v", st.Error)
 		}
-		time.Sleep(300 * time.Millisecond)
+		time.Sleep(150 * time.Millisecond)
 	}
 
 	// 3. baixa o wav
