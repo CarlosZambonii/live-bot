@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/CarlosZambonii/backseat/internal/brain"
+	"github.com/CarlosZambonii/backseat/internal/capture"
 	"github.com/CarlosZambonii/backseat/internal/stt"
 	"github.com/CarlosZambonii/backseat/internal/voice"
 )
@@ -14,12 +15,12 @@ type Orchestrator struct {
 	Brain *brain.Client
 	Voice *voice.Client
 
-	ChunkSeconds int // duração de cada janela de escuta
+	ChunkSeconds int
+	Vision       bool // liga/desliga o screenshot junto da fala
 }
 
-// Run: loop ouvir -> transcrever -> pensar -> falar. Ctrl+C pra parar.
 func (o *Orchestrator) Run() {
-	log.Println("[loop] ouvindo... (fale no mic; Ctrl+C para sair)")
+	log.Printf("[loop] ouvindo... (visão: %v; Ctrl+C para sair)", o.Vision)
 	for {
 		wav, err := stt.Listen(o.ChunkSeconds)
 		if err != nil {
@@ -33,15 +34,31 @@ func (o *Orchestrator) Run() {
 			continue
 		}
 		text = strings.TrimSpace(text)
-		if len(text) < 6 || !strings.ContainsAny(strings.ToLower(text), "abcdefghijklmnopqrstuvwxyzáéíóúãõç") { // silêncio/ruído -> ignora (VAD de pobre; melhora na Fase 3)
+		if len(text) < 6 || !strings.ContainsAny(strings.ToLower(text), "abcdefghijklmnopqrstuvwxyzáéíóúãõç") {
 			continue
 		}
 		log.Printf("[você] %s", text)
 
-		reply, err := o.Brain.Think(text)
-		if err != nil {
-			log.Printf("[brain] %v", err)
-			continue
+		var reply string
+		if o.Vision {
+			shot, err := capture.Screenshot()
+			if err != nil {
+				log.Printf("[visão] %v (seguindo sem imagem)", err)
+				reply, err = o.Brain.Think(text)
+			} else {
+				reply, err = o.Brain.ThinkWithVision(text, shot)
+				capture.Cleanup(shot)
+			}
+			if err != nil {
+				log.Printf("[brain] %v", err)
+				continue
+			}
+		} else {
+			reply, err = o.Brain.Think(text)
+			if err != nil {
+				log.Printf("[brain] %v", err)
+				continue
+			}
 		}
 		log.Printf("[backseat] %s", reply)
 

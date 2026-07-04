@@ -2,10 +2,12 @@ package brain
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -13,13 +15,25 @@ type Client struct {
 	apiKey  string
 	model   string
 	http    *http.Client
-	history []message // memória curta da sessão
+	history []message
 	persona string
 }
 
+// content pode ser string (texto puro) ou []part (multimodal)
 type message struct {
 	Role    string `json:"role"`
-	Content string `json:"content"`
+	Content any    `json:"content"`
+}
+
+type part struct {
+	Type     string    `json:"type"`
+	Text     string    `json:"text,omitempty"`
+	ImageURL *imageURL `json:"image_url,omitempty"`
+}
+
+type imageURL struct {
+	URL    string `json:"url"`
+	Detail string `json:"detail,omitempty"`
 }
 
 func New(apiKey, model, persona string) *Client {
@@ -31,21 +45,56 @@ func New(apiKey, model, persona string) *Client {
 	}
 }
 
-// Think recebe o que o streamer falou e devolve a resposta do co-host.
+// Think: só texto.
 func (c *Client) Think(userText string) (string, error) {
-	c.history = append(c.history, message{Role: "user", Content: userText})
-	// janela curta: persona + últimas 10 mensagens (controla custo)
+	return c.chat(message{Role: "user", Content: userText})
+}
+
+// ThinkWithVision: texto + screenshot. A imagem NÃO entra no histórico
+// (só o texto), senão o contexto explode de tamanho/custo.
+func (c *Client) ThinkWithVision(userText, imagePath string) (string, error) {
+	img, err := os.ReadFile(imagePath)
+	if err != nil {
+		return "", fmt.Errorf("ler screenshot: %w", err)
+	}
+	b64 := base64.StdEncoding.EncodeToString(img)
+
+	visionMsg := message{Role: "user", Content: []part{
+		{Type: "text", Text: userText + "\n\n(Você está vendo a tela do streamer agora. Comente com base no que vê, sem descrever a imagem inteira.)"},
+		{Type: "image_url", ImageURL: &imageURL{
+			URL:    "data:image/png;base64," + b64,
+			Detail: "low", // low = ~85 tokens por imagem; barato e suficiente pra contexto de jogo
+		}},
+	}}
+	return c.chat(visionMsg)
+}
+
+func (c *Client) chat(userMsg message) (string, error) {
+	// histórico: só a versão texto (extrai o texto se for multimodal)
+	histEntry := userMsg
+	if parts, ok := userMsg.Content.([]part); ok {
+		for _, p := range parts {
+			if p.Type == "text" {
+				histEntry = message{Role: "user", Content: p.Text}
+				break
+			}
+		}
+	}
+	c.history = append(c.history, histEntry)
+
 	msgs := []message{{Role: "system", Content: c.persona}}
 	start := 0
 	if len(c.history) > 10 {
 		start = len(c.history) - 10
 	}
-	msgs = append(msgs, c.history[start:]...)
+	// histórico (sem a última, que vai na versão completa) + mensagem atual
+	msgs = append(msgs, c.history[start:len(c.history)-1]...)
+	msgs = append(msgs, userMsg)
 
 	body, _ := json.Marshal(map[string]any{
 		"model":      c.model,
 		"messages":   msgs,
-		"max_tokens": 150, // resposta curta = fala curta = latência baixa
+		"max_tokens": 150,
 	})
 
 	req, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewReader(body))
@@ -64,7 +113,9 @@ func (c *Client) Think(userText string) (string, error) {
 
 	var out struct {
 		Choices []struct {
-			Message message `json:"message"`
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
 		} `json:"choices"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
