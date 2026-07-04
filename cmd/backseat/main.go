@@ -1,9 +1,13 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
+
+	"github.com/CarlosZambonii/backseat/internal/brain"
+	"github.com/CarlosZambonii/backseat/internal/orchestrator"
+	"github.com/CarlosZambonii/backseat/internal/stt"
+	"github.com/CarlosZambonii/backseat/internal/voice"
 )
 
 func env(key, def string) string {
@@ -13,27 +17,25 @@ func env(key, def string) string {
 	return def
 }
 
+const defaultPersona = `Você é o Backseat, co-host de IA de uma live de games em português brasileiro.
+Personalidade: zoeiro na medida, sarcástico, mas parceiro. Comenta a gameplay, zoa quando o streamer erra, elogia (com deboche) quando acerta.
+Regras: respostas CURTAS (1-2 frases, é fala, não texto). Sem emojis, sem listas. Português brasileiro natural, com gíria.`
+
 func main() {
 	log.SetFlags(0)
 
-	fmt.Println("Backseat — co-host de IA")
-	fmt.Println("--------------------------------")
-
-	pairs := [][2]string{
-		{"OPENAI_MODEL", env("OPENAI_MODEL", "gpt-4o-mini")},
-		{"VOICEBOX_URL", env("VOICEBOX_URL", "http://127.0.0.1:17493")},
-		{"TTS_ENGINE", env("TTS_ENGINE", "kokoro")},
-		{"TTS_LANGUAGE", env("TTS_LANGUAGE", "pt")},
-		{"STT_MODEL", env("STT_MODEL", "whisper-base")},
-		{"TWITCH_CHANNEL", env("TWITCH_CHANNEL", "(vazio)")},
-	}
-	for _, p := range pairs {
-		fmt.Printf("  %-15s %s\n", p[0], p[1])
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		log.Fatal("OPENAI_API_KEY não definida. Configure no .env e rode: export $(grep -v '^#' .env | xargs)")
 	}
 
-	if os.Getenv("OPENAI_API_KEY") == "" {
-		log.Println("\n[aviso] OPENAI_API_KEY nao definida — configure no .env antes da Fase 1")
+	o := &orchestrator.Orchestrator{
+		STT:          stt.New(env("VOICEBOX_URL", "http://127.0.0.1:17493"), env("STT_MODEL", "whisper-base")),
+		Brain:        brain.New(apiKey, env("OPENAI_MODEL", "gpt-4o-mini"), env("PERSONA", defaultPersona)),
+		Voice:        voice.New(env("VOICEBOX_URL", "http://127.0.0.1:17493"), env("TTS_ENGINE", "kokoro"), env("TTS_LANGUAGE", "pt"), env("TTS_PROFILE_ID", "")),
+		ChunkSeconds: 5,
 	}
 
-	fmt.Println("\nOK. Esqueleto rodando. Proximo: captura + loop STT->LLM->TTS.")
+	log.Println("Backseat — Fase 1: loop de voz")
+	o.Run()
 }
