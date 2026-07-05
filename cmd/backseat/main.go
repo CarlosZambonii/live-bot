@@ -7,6 +7,7 @@ import (
 
 	"github.com/CarlosZambonii/backseat/internal/brain"
 	"github.com/CarlosZambonii/backseat/internal/chat"
+	"github.com/CarlosZambonii/backseat/internal/memory"
 	"github.com/CarlosZambonii/backseat/internal/orchestrator"
 	"github.com/CarlosZambonii/backseat/internal/stt"
 	"github.com/CarlosZambonii/backseat/internal/voice"
@@ -43,6 +44,13 @@ func main() {
 		chatSrc = chat.NewFake(8 * time.Second)
 	}
 
+	var mem *memory.Store
+	if m, err := memory.New(env("REDIS_ADDR", "localhost:6379"), env("PG_DSN", "postgres://backseat:backseat@localhost:5432/backseat?sslmode=disable")); err != nil {
+		log.Printf("[memória] indisponível (%v) — rodando sem", err)
+	} else {
+		mem = m
+	}
+
 	o := &orchestrator.Orchestrator{
 		STT:          stt.New(env("VOICEBOX_URL", "http://127.0.0.1:17493"), env("STT_MODEL", "whisper-base")),
 		Brain:        brain.New(apiKey, env("OPENAI_MODEL", "gpt-4o-mini"), env("PERSONA", defaultPersona)),
@@ -50,6 +58,7 @@ func main() {
 		VADThreshold: 500,
 		Vision:       true,
 		Chat:         chatSrc,
+		Memory:       mem,
 	}
 
 	log.Println("Backseat — Fase 1: loop de voz")

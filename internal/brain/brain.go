@@ -22,6 +22,14 @@ type Client struct {
 
 	mu        sync.Mutex
 	extraCtx  string // contexto dinâmico (chat da live), injetado a cada chamada
+	memoryCtx string // fatos de longo prazo, carregados no boot
+}
+
+// SetMemory define o bloco de memória de longo prazo do system prompt.
+func (c *Client) SetMemory(m string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.memoryCtx = m
 }
 
 // SetContext atualiza o contexto extra (ex: chat recente) usado nas próximas chamadas.
@@ -96,6 +104,9 @@ func (c *Client) chat(userMsg message) (string, error) {
 
 	c.mu.Lock()
 	system := c.persona
+	if c.memoryCtx != "" {
+		system += "\n\n" + c.memoryCtx
+	}
 	if c.extraCtx != "" {
 		system += "\n\nContexto (mensagens recentes do chat da live, use APENAS quando a pergunta do streamer for sobre o chat; caso contrário responda a pergunta normalmente e ignore este bloco; nunca invente mensagens):\n" + c.extraCtx
 	}

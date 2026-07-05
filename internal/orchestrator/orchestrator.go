@@ -10,6 +10,7 @@ import (
 
 	"github.com/CarlosZambonii/backseat/internal/brain"
 	"github.com/CarlosZambonii/backseat/internal/chat"
+	"github.com/CarlosZambonii/backseat/internal/memory"
 	"github.com/CarlosZambonii/backseat/internal/capture"
 	"github.com/CarlosZambonii/backseat/internal/stt"
 	"github.com/CarlosZambonii/backseat/internal/voice"
@@ -21,6 +22,7 @@ type Orchestrator struct {
 	Voice  *voice.Client
 	Vision bool
 	Chat   chat.Source
+	Memory *memory.Store
 
 	VADThreshold float64
 
@@ -70,6 +72,14 @@ func (o *Orchestrator) Run() {
 		}()
 	}
 
+	if o.Memory != nil {
+		if facts := o.Memory.Facts(20); len(facts) > 0 {
+			o.Brain.SetMemory("O que você já sabe sobre o streamer e lives passadas:\n- " + strings.Join(facts, "\n- "))
+			log.Printf("[memória] %d fatos carregados", len(facts))
+		}
+		go o.consolidator()
+	}
+
 	listener := stt.NewListener(o.VADThreshold)
 	o.segments = listener.Segments
 
@@ -109,7 +119,7 @@ func (o *Orchestrator) Run() {
 			continue
 		}
 		text = strings.TrimSpace(text)
-		if !isRealSpeech(text) {
+		if !isRealSpeech(text) || isLooping(text) {
 			continue
 		}
 		o.muteMu.Lock()
@@ -121,6 +131,9 @@ func (o *Orchestrator) Run() {
 		}
 		log.Printf("[você] %s", text)
 		o.touchActivity()
+		if o.Memory != nil {
+			o.Memory.AppendSession("streamer", text)
+		}
 
 		var reply string
 		if o.Vision {
@@ -300,6 +313,19 @@ func isEchoOf(transcript, spoken string) bool {
 	return float64(hits)/float64(total) > 0.4
 }
 
+// isLooping detecta alucinação repetitiva do Whisper: vocabulário minúsculo pra texto longo.
+func isLooping(text string) bool {
+	words := strings.Fields(strings.ToLower(text))
+	if len(words) < 15 {
+		return false
+	}
+	uniq := map[string]bool{}
+	for _, w := range words {
+		uniq[w] = true
+	}
+	return float64(len(uniq))/float64(len(words)) < 0.2 // menos de 20% de palavras únicas = loop
+}
+
 // screenWatcher olha a tela periodicamente e comenta sozinha se algo digno rolou.
 func (o *Orchestrator) screenWatcher() {
 	ticker := time.NewTicker(20 * time.Second)
@@ -354,5 +380,37 @@ func (o *Orchestrator) silenceWatcher() {
 		}
 		log.Printf("[backseat] %s", reply)
 		o.speak(reply) // speak toca a atividade, resetando o timer
+	}
+}
+
+func (o *Orchestrator) consolidator() {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		transcript := o.Memory.SessionTranscript()
+		if len(transcript) < 200 {
+			continue
+		}
+		out, err := o.Brain.ThinkStateless("Abaixo está a transcrição recente de uma live. Extraia até 3 fatos DURADOUROS que valem lembrar em lives futuras (preferências do streamer, eventos marcantes, piadas internas, nomes citados). Um por linha, frases curtas. Se nada valer a pena, responda NADA.\n\n" + transcript)
+		if err != nil {
+			continue
+		}
+		out = strings.TrimSpace(out)
+		if strings.EqualFold(out, "NADA") {
+			continue
+		}
+		n := 0
+		for _, line := range strings.Split(out, "\n") {
+			line = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "-"))
+			if len(line) > 10 {
+				if o.Memory.AddFact(line) == nil {
+					n++
+				}
+			}
+		}
+		if n > 0 {
+			log.Printf("[memória] %d fatos consolidados", n)
+			o.Memory.ClearSession()
+		}
 	}
 }
