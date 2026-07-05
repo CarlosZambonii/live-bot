@@ -32,6 +32,7 @@ type Orchestrator struct {
 	segments        chan string
 	muteMu          sync.Mutex
 	muteUntil       time.Time // segmentos capturados antes disso são eco dela
+	lastSpoken      string    // última fala dela (pro filtro de similaridade)
 }
 
 func (o *Orchestrator) Run() {
@@ -97,6 +98,13 @@ func (o *Orchestrator) Run() {
 		if !isRealSpeech(text) {
 			continue
 		}
+		o.muteMu.Lock()
+		last := o.lastSpoken
+		o.muteMu.Unlock()
+		if isEchoOf(text, last) {
+			log.Println("[anti-eco] transcrição similar à fala dela, descartada")
+			continue
+		}
 		log.Printf("[você] %s", text)
 
 		var reply string
@@ -144,6 +152,7 @@ func (o *Orchestrator) speak(text string) {
 	// tudo que o VAD fechar até 1.5s após o fim da fala é eco dela
 	o.muteMu.Lock()
 	o.muteUntil = time.Now().Add(1500 * time.Millisecond)
+	o.lastSpoken = text
 	o.muteMu.Unlock()
 	if o.segments != nil {
 		drain(o.segments)
@@ -235,4 +244,35 @@ func (o *Orchestrator) maybeAnswerSpontaneous(m chat.Message) {
 		log.Printf("[backseat->%s] %s", m.User, reply)
 		o.speak(reply)
 	}()
+}
+
+// isEchoOf detecta se a transcrição é eco da última fala da Dora:
+// alta sobreposição de palavras = mic captou a voz dela.
+func isEchoOf(transcript, spoken string) bool {
+	if spoken == "" {
+		return false
+	}
+	spokenWords := map[string]bool{}
+	for _, w := range strings.Fields(strings.ToLower(spoken)) {
+		if len(w) >= 4 { // só palavras com conteúdo
+			spokenWords[w] = true
+		}
+	}
+	if len(spokenWords) == 0 {
+		return false
+	}
+	var hits, total int
+	for _, w := range strings.Fields(strings.ToLower(transcript)) {
+		if len(w) < 4 {
+			continue
+		}
+		total++
+		if spokenWords[w] {
+			hits++
+		}
+	}
+	if total < 3 {
+		return false // curto demais pra julgar
+	}
+	return float64(hits)/float64(total) > 0.4
 }
