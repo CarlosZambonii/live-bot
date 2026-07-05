@@ -252,7 +252,14 @@ func (o *Orchestrator) maybeAnswerSpontaneous(m chat.Message) {
 		o.lastSpont = time.Now()
 		log.Printf("[espontânea] respondendo %s", m.User)
 
-		reply, err := o.Brain.Think("O viewer \"" + m.User + "\" perguntou no chat: \"" + m.Text + "\". Responda a ele pelo nick, em uma frase, por voz.")
+		prompt := "O viewer \"" + m.User + "\" perguntou no chat: \"" + m.Text + "\". Responda a ele pelo nick, em uma frase, por voz. Se a pergunta for sobre o jogo/tela, use a imagem anexa (tela atual da live). NUNCA use placeholders como [nome do jogo]; se não souber, diga que não sabe."
+var reply string
+if shot, errS := capture.Screenshot(); errS == nil {
+reply, err = o.Brain.ThinkWithVision(prompt, shot)
+capture.Cleanup(shot)
+} else {
+reply, err = o.Brain.Think(prompt)
+}
 		if err != nil {
 			log.Printf("[espontânea] brain: %v", err)
 			return
