@@ -28,6 +28,8 @@ type Orchestrator struct {
 	lastMention     time.Time
 	spontCooldown   time.Duration
 	lastSpont       time.Time
+	autoCooldown    time.Duration
+	lastAuto        time.Time
 	speaking        sync.Mutex // serializa quem usa a voz
 	segments        chan string
 	muteMu          sync.Mutex
@@ -68,6 +70,12 @@ func (o *Orchestrator) Run() {
 
 	listener := stt.NewListener(o.VADThreshold)
 	o.segments = listener.Segments
+
+	// watcher de tela: comenta eventos sozinha
+	if o.Vision {
+		o.autoCooldown = 90 * time.Second
+		go o.screenWatcher()
+	}
 	go func() {
 		if err := listener.Start(); err != nil {
 			log.Fatalf("[mic] %v", err)
@@ -275,4 +283,33 @@ func isEchoOf(transcript, spoken string) bool {
 		return false // curto demais pra julgar
 	}
 	return float64(hits)/float64(total) > 0.4
+}
+
+// screenWatcher olha a tela periodicamente e comenta sozinha se algo digno rolou.
+func (o *Orchestrator) screenWatcher() {
+	ticker := time.NewTicker(20 * time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		if time.Since(o.lastAuto) < o.autoCooldown {
+			continue // budget de autônomas
+		}
+		shot, err := capture.Screenshot()
+		if err != nil {
+			continue
+		}
+		verdict, err := o.Brain.ThinkWithVision(
+			"Você está monitorando a tela do streamer. Se algo DIGNO DE COMENTÁRIO acabou de acontecer (morte no jogo, vitória, derrota, placar mudou drasticamente, algo bizarro ou engraçado na tela), responda com um comentário curto de co-host sobre isso. Se for só gameplay normal, menu, tela parada ou nada especial, responda EXATAMENTE a palavra: NADA",
+			shot)
+		capture.Cleanup(shot)
+		if err != nil {
+			continue
+		}
+		v := strings.TrimSpace(verdict)
+		if v == "" || strings.EqualFold(v, "NADA") || strings.Contains(strings.ToUpper(v), "NADA") && len(v) < 12 {
+			continue
+		}
+		o.lastAuto = time.Now()
+		log.Printf("[autônoma] %s", v)
+		o.speak(v)
+	}
 }
