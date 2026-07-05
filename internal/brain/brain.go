@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -17,6 +19,16 @@ type Client struct {
 	http    *http.Client
 	history []message
 	persona string
+
+	mu        sync.Mutex
+	extraCtx  string // contexto dinâmico (chat da live), injetado a cada chamada
+}
+
+// SetContext atualiza o contexto extra (ex: chat recente) usado nas próximas chamadas.
+func (c *Client) SetContext(ctx string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.extraCtx = ctx
 }
 
 // content pode ser string (texto puro) ou []part (multimodal)
@@ -60,7 +72,7 @@ func (c *Client) ThinkWithVision(userText, imagePath string) (string, error) {
 	b64 := base64.StdEncoding.EncodeToString(img)
 
 	visionMsg := message{Role: "user", Content: []part{
-		{Type: "text", Text: userText + "\n\n(Você está vendo a tela do streamer agora. Comente com base no que vê, sem descrever a imagem inteira.)"},
+		{Type: "text", Text: userText + "\n\n(A imagem é a tela atual do streamer, use como contexto APENAS se a pergunta for sobre o jogo/tela. Se a pergunta for sobre o chat ou outra coisa, responda a pergunta e ignore a imagem.)"},
 		{Type: "image_url", ImageURL: &imageURL{
 			URL:    "data:image/png;base64," + b64,
 			Detail: "low", // low = ~85 tokens por imagem; barato e suficiente pra contexto de jogo
@@ -82,7 +94,15 @@ func (c *Client) chat(userMsg message) (string, error) {
 	}
 	c.history = append(c.history, histEntry)
 
-	msgs := []message{{Role: "system", Content: c.persona}}
+	c.mu.Lock()
+	system := c.persona
+	if c.extraCtx != "" {
+		system += "\n\nContexto (mensagens recentes do chat da live, use APENAS quando a pergunta do streamer for sobre o chat; caso contrário responda a pergunta normalmente e ignore este bloco; nunca invente mensagens):\n" + c.extraCtx
+	}
+	ctxLen := len(c.extraCtx)
+	c.mu.Unlock()
+	log.Printf("[debug] extraCtx no prompt: %d chars", ctxLen)
+	msgs := []message{{Role: "system", Content: system}}
 	start := 0
 	if len(c.history) > 10 {
 		start = len(c.history) - 10

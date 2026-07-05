@@ -4,9 +4,11 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/CarlosZambonii/backseat/internal/brain"
+	"github.com/CarlosZambonii/backseat/internal/chat"
 	"github.com/CarlosZambonii/backseat/internal/capture"
 	"github.com/CarlosZambonii/backseat/internal/stt"
 	"github.com/CarlosZambonii/backseat/internal/voice"
@@ -17,11 +19,43 @@ type Orchestrator struct {
 	Brain  *brain.Client
 	Voice  *voice.Client
 	Vision bool
+	Chat   chat.Source
 
 	VADThreshold float64
+
+	mentionCooldown time.Duration
+	lastMention     time.Time
+	speaking        sync.Mutex // serializa quem usa a voz
 }
 
 func (o *Orchestrator) Run() {
+	// chat: consome mensagens e mantém o buffer de contexto atualizado
+	if o.Chat != nil {
+		buf := chat.NewBuffer(15)
+		go func() {
+			if err := o.Chat.Start(); err != nil {
+				log.Printf("[chat] %v", err)
+			}
+		}()
+		o.mentionCooldown = 45 * time.Second
+		go func() {
+			for m := range o.Chat.Messages() {
+				log.Printf("[chat] %s: %s", m.User, m.Text)
+				buf.Add(m)
+				o.Brain.SetContext(buf.Context())
+
+				if mentionsDora(m.Text) {
+					if time.Since(o.lastMention) < o.mentionCooldown {
+						log.Printf("[menção] %s chamou, mas cooldown ativo (%.0fs restantes)", m.User, (o.mentionCooldown - time.Since(o.lastMention)).Seconds())
+						continue
+					}
+					o.lastMention = time.Now()
+					go o.answerMention(m)
+				}
+			}
+		}()
+	}
+
 	listener := stt.NewListener(o.VADThreshold)
 	go func() {
 		if err := listener.Start(); err != nil {
@@ -80,7 +114,10 @@ func (o *Orchestrator) Run() {
 		log.Printf("[t] voz (gerar+tocar): %.1fs", time.Since(tVoice).Seconds())
 		log.Printf("[latência] %.1fs (fala->fim da resposta)", time.Since(start).Seconds())
 
-		// descarta o que foi captado enquanto a Dora falava (anti eco/feedback)
+		// anti-eco: descarta o que foi captado durante a fala dela E
+		// segura mais um pouco pra pegar segmentos retardatários do VAD
+		drain(listener.Segments)
+		time.Sleep(1200 * time.Millisecond)
 		drain(listener.Segments)
 	}
 }
@@ -120,4 +157,28 @@ func isRealSpeech(text string) bool {
 		}
 	}
 	return true
+}
+
+
+// mentionsDora detecta se a mensagem chama a Dora.
+func mentionsDora(text string) bool {
+	t := strings.ToLower(text)
+	return strings.Contains(t, "dora")
+}
+
+// answerMention responde por voz a uma menção do chat.
+func (o *Orchestrator) answerMention(m chat.Message) {
+	prompt := "O viewer \"" + m.User + "\" disse no chat: \"" + m.Text + "\". Responda a ele diretamente pelo nick, por voz, em uma frase."
+	reply, err := o.Brain.Think(prompt)
+	if err != nil {
+		log.Printf("[menção] brain: %v", err)
+		return
+	}
+	log.Printf("[backseat->%s] %s", m.User, reply)
+
+	o.speaking.Lock()
+	defer o.speaking.Unlock()
+	if err := o.Voice.Speak(reply); err != nil {
+		log.Printf("[menção] voz: %v", err)
+	}
 }
