@@ -30,6 +30,8 @@ type Orchestrator struct {
 	lastSpont       time.Time
 	autoCooldown    time.Duration
 	lastAuto        time.Time
+	activityMu      sync.Mutex
+	lastActivity    time.Time
 	speaking        sync.Mutex // serializa quem usa a voz
 	segments        chan string
 	muteMu          sync.Mutex
@@ -76,6 +78,10 @@ func (o *Orchestrator) Run() {
 		o.autoCooldown = 90 * time.Second
 		go o.screenWatcher()
 	}
+
+	// watcher de silêncio: cutuca depois de mudez prolongada
+	o.touchActivity()
+	go o.silenceWatcher()
 	go func() {
 		if err := listener.Start(); err != nil {
 			log.Fatalf("[mic] %v", err)
@@ -114,6 +120,7 @@ func (o *Orchestrator) Run() {
 			continue
 		}
 		log.Printf("[você] %s", text)
+		o.touchActivity()
 
 		var reply string
 		if o.Vision {
@@ -162,6 +169,7 @@ func (o *Orchestrator) speak(text string) {
 	o.muteUntil = time.Now().Add(1500 * time.Millisecond)
 	o.lastSpoken = text
 	o.muteMu.Unlock()
+	o.touchActivity()
 	if o.segments != nil {
 		drain(o.segments)
 	}
@@ -233,7 +241,7 @@ func (o *Orchestrator) maybeAnswerSpontaneous(m chat.Message) {
 		return // dado: 40% das candidatas morrem aqui, mantém imprevisível
 	}
 	go func() {
-		verdict, err := o.Brain.Think("Classifique a mensagem de chat a seguir. Responda APENAS 'sim' se for uma pergunta genuína que um co-host deveria responder (sobre a live, o jogo, o streamer, o canal), ou 'nao' para spam, emote, papo entre viewers ou piada. Mensagem de \"" + m.User + "\": \"" + m.Text + "\"")
+		verdict, err := o.Brain.ThinkStateless("Classifique a mensagem de chat a seguir. Responda APENAS 'sim' se for uma pergunta genuína que um co-host deveria responder (sobre a live, o jogo, o streamer, o canal), ou 'nao' para spam, emote, papo entre viewers ou piada. Mensagem de \"" + m.User + "\": \"" + m.Text + "\"")
 		if err != nil || !strings.Contains(strings.ToLower(verdict), "sim") {
 			return
 		}
@@ -297,8 +305,8 @@ func (o *Orchestrator) screenWatcher() {
 		if err != nil {
 			continue
 		}
-		verdict, err := o.Brain.ThinkWithVision(
-			"Você está monitorando a tela do streamer. Se algo DIGNO DE COMENTÁRIO acabou de acontecer (morte no jogo, vitória, derrota, placar mudou drasticamente, algo bizarro ou engraçado na tela), responda com um comentário curto de co-host sobre isso. Se for só gameplay normal, menu, tela parada ou nada especial, responda EXATAMENTE a palavra: NADA",
+		verdict, err := o.Brain.VisionStateless(
+			"Você está monitorando a tela do streamer de uma live. Se algo DIGNO DE COMENTÁRIO acabou de acontecer (morte no jogo, vitória, derrota, placar mudou drasticamente, algo bizarro ou engraçado na tela), responda com um comentário curto de co-host sobre isso, em português. Se for só gameplay normal, menu, tela parada ou nada especial, responda EXATAMENTE a palavra: NADA",
 			shot)
 		capture.Cleanup(shot)
 		if err != nil {
@@ -311,5 +319,33 @@ func (o *Orchestrator) screenWatcher() {
 		o.lastAuto = time.Now()
 		log.Printf("[autônoma] %s", v)
 		o.speak(v)
+	}
+}
+
+func (o *Orchestrator) touchActivity() {
+	o.activityMu.Lock()
+	o.lastActivity = time.Now()
+	o.activityMu.Unlock()
+}
+
+// silenceWatcher: 3min sem fala (sua ou dela) -> ela puxa assunto. Uma vez por silêncio.
+func (o *Orchestrator) silenceWatcher() {
+	const threshold = 3 * time.Minute
+	ticker := time.NewTicker(20 * time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		o.activityMu.Lock()
+		quiet := time.Since(o.lastActivity)
+		o.activityMu.Unlock()
+		if quiet < threshold {
+			continue
+		}
+		log.Printf("[silêncio] %.0fs de mudez, cutucando", quiet.Seconds())
+		reply, err := o.Brain.Think("Faz mais de 3 minutos que ninguém fala nada na live. Quebre o silêncio: uma frase curta cutucando o streamer ou puxando assunto com o chat.")
+		if err != nil {
+			continue
+		}
+		log.Printf("[backseat] %s", reply)
+		o.speak(reply) // speak toca a atividade, resetando o timer
 	}
 }

@@ -148,3 +148,71 @@ func (c *Client) chat(userMsg message) (string, error) {
 	c.history = append(c.history, message{Role: "assistant", Content: reply})
 	return reply, nil
 }
+
+
+// ThinkStateless: chamada isolada, sem histórico e sem persona de conversa.
+// Para classificadores e vereditos de sistema — não contamina a conversa.
+func (c *Client) ThinkStateless(prompt string) (string, error) {
+	body, _ := json.Marshal(map[string]any{
+		"model":      c.model,
+		"messages":   []message{{Role: "user", Content: prompt}},
+		"max_tokens": 100,
+	})
+	req, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	var out struct {
+		Choices []struct {
+			Message struct{ Content string `json:"content"` } `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return "", err
+	}
+	if len(out.Choices) == 0 {
+		return "", fmt.Errorf("resposta vazia")
+	}
+	return out.Choices[0].Message.Content, nil
+}
+
+// VisionStateless: veredito com imagem, sem histórico.
+func (c *Client) VisionStateless(prompt, imagePath string) (string, error) {
+	img, err := os.ReadFile(imagePath)
+	if err != nil {
+		return "", err
+	}
+	b64 := base64.StdEncoding.EncodeToString(img)
+	body, _ := json.Marshal(map[string]any{
+		"model": c.model,
+		"messages": []message{{Role: "user", Content: []part{
+			{Type: "text", Text: prompt},
+			{Type: "image_url", ImageURL: &imageURL{URL: "data:image/png;base64," + b64, Detail: "low"}},
+		}}},
+		"max_tokens": 100,
+	})
+	req, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	var out struct {
+		Choices []struct {
+			Message struct{ Content string `json:"content"` } `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return "", err
+	}
+	if len(out.Choices) == 0 {
+		return "", fmt.Errorf("resposta vazia")
+	}
+	return out.Choices[0].Message.Content, nil
+}
