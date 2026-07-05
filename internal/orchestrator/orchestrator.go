@@ -2,6 +2,7 @@ package orchestrator
 
 import (
 	"log"
+	"math/rand"
 	"os"
 	"strings"
 	"sync"
@@ -25,6 +26,8 @@ type Orchestrator struct {
 
 	mentionCooldown time.Duration
 	lastMention     time.Time
+	spontCooldown   time.Duration
+	lastSpont       time.Time
 	speaking        sync.Mutex // serializa quem usa a voz
 }
 
@@ -38,6 +41,7 @@ func (o *Orchestrator) Run() {
 			}
 		}()
 		o.mentionCooldown = 45 * time.Second
+		o.spontCooldown = 150 * time.Second
 		go func() {
 			for m := range o.Chat.Messages() {
 				log.Printf("[chat] %s: %s", m.User, m.Text)
@@ -51,7 +55,9 @@ func (o *Orchestrator) Run() {
 					}
 					o.lastMention = time.Now()
 					go o.answerMention(m)
+					continue
 				}
+				o.maybeAnswerSpontaneous(m)
 			}
 		}()
 	}
@@ -181,4 +187,39 @@ func (o *Orchestrator) answerMention(m chat.Message) {
 	if err := o.Voice.Speak(reply); err != nil {
 		log.Printf("[menção] voz: %v", err)
 	}
+}
+
+// maybeAnswerSpontaneous decide se responde uma mensagem que NÃO menciona a Dora.
+// Travas em ordem barata->cara: budget -> dado -> classificador LLM -> resposta.
+func (o *Orchestrator) maybeAnswerSpontaneous(m chat.Message) {
+	if time.Since(o.lastSpont) < o.spontCooldown {
+		return // budget estourado, nem gasta classificação
+	}
+	if rand.Float64() > 0.6 {
+		return // dado: 40% das candidatas morrem aqui, mantém imprevisível
+	}
+	go func() {
+		verdict, err := o.Brain.Think("Classifique a mensagem de chat a seguir. Responda APENAS 'sim' se for uma pergunta genuína que um co-host deveria responder (sobre a live, o jogo, o streamer, o canal), ou 'nao' para spam, emote, papo entre viewers ou piada. Mensagem de \"" + m.User + "\": \"" + m.Text + "\"")
+		if err != nil || !strings.Contains(strings.ToLower(verdict), "sim") {
+			return
+		}
+		// re-checa o budget (a classificação levou tempo, outra goroutine pode ter falado)
+		if time.Since(o.lastSpont) < o.spontCooldown {
+			return
+		}
+		o.lastSpont = time.Now()
+		log.Printf("[espontânea] respondendo %s", m.User)
+
+		reply, err := o.Brain.Think("O viewer \"" + m.User + "\" perguntou no chat: \"" + m.Text + "\". Responda a ele pelo nick, em uma frase, por voz.")
+		if err != nil {
+			log.Printf("[espontânea] brain: %v", err)
+			return
+		}
+		log.Printf("[backseat->%s] %s", m.User, reply)
+		o.speaking.Lock()
+		defer o.speaking.Unlock()
+		if err := o.Voice.Speak(reply); err != nil {
+			log.Printf("[espontânea] voz: %v", err)
+		}
+	}()
 }
