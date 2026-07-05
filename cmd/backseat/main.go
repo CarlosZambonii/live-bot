@@ -32,7 +32,14 @@ func main() {
 	}
 
 	var chatSrc chat.Source
-	if env("CHAT_SOURCE", "fake") == "fake" {
+	switch env("CHAT_SOURCE", "fake") {
+	case "twitch":
+		ch := os.Getenv("TWITCH_CHANNEL")
+		if ch == "" {
+			log.Fatal("CHAT_SOURCE=twitch mas TWITCH_CHANNEL vazio no .env")
+		}
+		chatSrc = chat.NewTwitch(ch)
+	case "fake":
 		chatSrc = chat.NewFake(8 * time.Second)
 	}
 
