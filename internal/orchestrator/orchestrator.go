@@ -29,6 +29,9 @@ type Orchestrator struct {
 	spontCooldown   time.Duration
 	lastSpont       time.Time
 	speaking        sync.Mutex // serializa quem usa a voz
+	segments        chan string
+	muteMu          sync.Mutex
+	muteUntil       time.Time // segmentos capturados antes disso são eco dela
 }
 
 func (o *Orchestrator) Run() {
@@ -63,6 +66,7 @@ func (o *Orchestrator) Run() {
 	}
 
 	listener := stt.NewListener(o.VADThreshold)
+	o.segments = listener.Segments
 	go func() {
 		if err := listener.Start(); err != nil {
 			log.Fatalf("[mic] %v", err)
@@ -71,6 +75,14 @@ func (o *Orchestrator) Run() {
 	log.Printf("[loop] escuta contínua ligada (VAD threshold=%.0f, visão=%v). Ctrl+C para sair.", o.VADThreshold, o.Vision)
 
 	for wavPath := range listener.Segments {
+		o.muteMu.Lock()
+		muted := time.Now().Before(o.muteUntil)
+		o.muteMu.Unlock()
+		if muted {
+			os.Remove(wavPath)
+			log.Println("[anti-eco] segmento do período de fala dela, descartado")
+			continue
+		}
 		start := time.Now()
 
 		tSTT := time.Now()
@@ -114,17 +126,27 @@ func (o *Orchestrator) Run() {
 		log.Printf("[backseat] %s", reply)
 
 		tVoice := time.Now()
-		if err := o.Voice.Speak(reply); err != nil {
-			log.Printf("[voice] %v", err)
-		}
+		o.speak(reply)
 		log.Printf("[t] voz (gerar+tocar): %.1fs", time.Since(tVoice).Seconds())
 		log.Printf("[latência] %.1fs (fala->fim da resposta)", time.Since(start).Seconds())
 
-		// anti-eco: descarta o que foi captado durante a fala dela E
-		// segura mais um pouco pra pegar segmentos retardatários do VAD
-		drain(listener.Segments)
-		time.Sleep(1200 * time.Millisecond)
-		drain(listener.Segments)
+
+	}
+}
+
+// speak centraliza toda fala da Dora: serializa a boca e drena o eco.
+func (o *Orchestrator) speak(text string) {
+	o.speaking.Lock()
+	defer o.speaking.Unlock()
+	if err := o.Voice.Speak(text); err != nil {
+		log.Printf("[voice] %v", err)
+	}
+	// tudo que o VAD fechar até 1.5s após o fim da fala é eco dela
+	o.muteMu.Lock()
+	o.muteUntil = time.Now().Add(1500 * time.Millisecond)
+	o.muteMu.Unlock()
+	if o.segments != nil {
+		drain(o.segments)
 	}
 }
 
@@ -181,12 +203,7 @@ func (o *Orchestrator) answerMention(m chat.Message) {
 		return
 	}
 	log.Printf("[backseat->%s] %s", m.User, reply)
-
-	o.speaking.Lock()
-	defer o.speaking.Unlock()
-	if err := o.Voice.Speak(reply); err != nil {
-		log.Printf("[menção] voz: %v", err)
-	}
+	o.speak(reply)
 }
 
 // maybeAnswerSpontaneous decide se responde uma mensagem que NÃO menciona a Dora.
@@ -216,10 +233,6 @@ func (o *Orchestrator) maybeAnswerSpontaneous(m chat.Message) {
 			return
 		}
 		log.Printf("[backseat->%s] %s", m.User, reply)
-		o.speaking.Lock()
-		defer o.speaking.Unlock()
-		if err := o.Voice.Speak(reply); err != nil {
-			log.Printf("[espontânea] voz: %v", err)
-		}
+		o.speak(reply)
 	}()
 }
