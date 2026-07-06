@@ -11,6 +11,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"github.com/CarlosZambonii/backseat/internal/tools"
 )
 
 type Client struct {
@@ -21,35 +23,26 @@ type Client struct {
 	persona string
 
 	mu        sync.Mutex
-	extraCtx  string // contexto dinâmico (chat da live), injetado a cada chamada
-	memoryCtx string // fatos de longo prazo, carregados no boot
+	extraCtx  string
+	memoryCtx string
+
+	search *tools.Searcher
 }
 
-// SetPersona troca a persona ao vivo.
-func (c *Client) SetPersona(p string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.persona = p
-}
-
-// SetMemory define o bloco de memória de longo prazo do system prompt.
-func (c *Client) SetMemory(m string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.memoryCtx = m
-}
-
-// SetContext atualiza o contexto extra (ex: chat recente) usado nas próximas chamadas.
-func (c *Client) SetContext(ctx string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.extraCtx = ctx
-}
-
-// content pode ser string (texto puro) ou []part (multimodal)
 type message struct {
-	Role    string `json:"role"`
-	Content any    `json:"content"`
+	Role       string     `json:"role"`
+	Content    any        `json:"content"`
+	ToolCalls  []toolCall `json:"tool_calls,omitempty"`
+	ToolCallID string     `json:"tool_call_id,omitempty"`
+}
+
+type toolCall struct {
+	ID       string `json:"id"`
+	Type     string `json:"type"`
+	Function struct {
+		Name      string `json:"name"`
+		Arguments string `json:"arguments"`
+	} `json:"function"`
 }
 
 type part struct {
@@ -72,13 +65,137 @@ func New(apiKey, model, persona string) *Client {
 	}
 }
 
-// Think: só texto.
-func (c *Client) Think(userText string) (string, error) {
-	return c.chat(message{Role: "user", Content: userText})
+func (c *Client) SetSearcher(s *tools.Searcher) {
+	c.search = s
+	log.Printf("[brain] searcher plugado: enabled=%v", s != nil && s.Enabled())
 }
 
-// ThinkWithVision: texto + screenshot. A imagem NÃO entra no histórico
-// (só o texto), senão o contexto explode de tamanho/custo.
+func (c *Client) SetPersona(p string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.persona = p
+}
+
+func (c *Client) SetMemory(m string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.memoryCtx = m
+}
+
+func (c *Client) SetContext(ctx string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.extraCtx = ctx
+}
+
+func (c *Client) systemPrompt() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	s := c.persona
+	if c.search != nil && c.search.Enabled() {
+		s += "\n\nIMPORTANTE: seu conhecimento sobre jogos, patches, versões e fatos atuais está desatualizado. Quando perguntarem sobre esses temas, use a ferramenta buscar_web ANTES de responder. Não confie na sua memória para fatos que mudam com o tempo."
+	}
+	if c.memoryCtx != "" {
+		s += "\n\n" + c.memoryCtx
+	}
+	if c.extraCtx != "" {
+		s += "\n\nContexto (mensagens recentes do chat da live, use APENAS quando a pergunta do streamer for sobre o chat; caso contrário responda normalmente e ignore este bloco; nunca invente mensagens):\n" + c.extraCtx
+	}
+	return s
+}
+
+// searchTool descreve a ferramenta de busca pro modelo.
+func searchToolDef() map[string]any {
+	return map[string]any{
+		"type": "function",
+		"function": map[string]any{
+			"name":        "buscar_web",
+			"description": "Busca informação atual na web. SEMPRE use esta ferramenta quando perguntarem sobre: patch notes, versão atual de jogos, último campeão/item/personagem adicionado, notícias, datas de hoje, resultados, ou qualquer fato que mude com o tempo. Seu conhecimento interno está DESATUALIZADO para esses temas — nunca responda de memória sobre eles, sempre busque. Só dispense a busca em conversa casual ou opinião pura.",
+			"parameters": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"query": map[string]any{"type": "string", "description": "termo de busca claro e específico"},
+				},
+				"required": []string{"query"},
+			},
+		},
+	}
+}
+
+// Think: conversa com o streamer, com busca web opcional via function calling.
+func (c *Client) Think(userText string) (string, error) {
+	c.history = append(c.history, message{Role: "user", Content: userText})
+
+	msgs := []message{{Role: "system", Content: c.systemPrompt()}}
+	start := 0
+	if len(c.history) > 10 {
+		start = len(c.history) - 10
+	}
+	msgs = append(msgs, c.history[start:]...)
+
+	// até 2 rodadas: modelo pode pedir busca, a gente responde, ele conclui
+	for round := 0; round < 3; round++ {
+		reqBody := map[string]any{
+			"model":      c.model,
+			"messages":   msgs,
+			"max_tokens": 150,
+		}
+		if c.search != nil && c.search.Enabled() {
+			reqBody["tools"] = []any{searchToolDef()}
+		}
+		body, _ := json.Marshal(reqBody)
+
+		req, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+
+		resp, err := c.http.Do(req)
+		if err != nil {
+			return "", fmt.Errorf("openai: %w", err)
+		}
+		var out struct {
+			Choices []struct {
+				Message struct {
+					Content   string     `json:"content"`
+					ToolCalls []toolCall `json:"tool_calls"`
+				} `json:"message"`
+			} `json:"choices"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+			resp.Body.Close()
+			return "", err
+		}
+		resp.Body.Close()
+		if len(out.Choices) == 0 {
+			return "", fmt.Errorf("openai: resposta vazia")
+		}
+		m := out.Choices[0].Message
+
+		// sem tool call: resposta final
+		if len(m.ToolCalls) == 0 {
+			c.history = append(c.history, message{Role: "assistant", Content: m.Content})
+			return m.Content, nil
+		}
+
+		// modelo pediu busca(s): registra a intenção e executa cada uma
+		msgs = append(msgs, message{Role: "assistant", ToolCalls: m.ToolCalls})
+		for _, tc := range m.ToolCalls {
+			var args struct {
+				Query string `json:"query"`
+			}
+			json.Unmarshal([]byte(tc.Function.Arguments), &args)
+			log.Printf("[busca] %s", args.Query)
+			result, err := c.search.Search(args.Query)
+			if err != nil {
+				result = "busca falhou: " + err.Error()
+			}
+			msgs = append(msgs, message{Role: "tool", ToolCallID: tc.ID, Content: result})
+		}
+	}
+	return "", fmt.Errorf("openai: muitas rodadas de tool")
+}
+
+// ThinkWithVision: texto + screenshot (sem busca; visão e busca não se misturam por ora).
 func (c *Client) ThinkWithVision(userText, imagePath string) (string, error) {
 	img, err := os.ReadFile(imagePath)
 	if err != nil {
@@ -87,58 +204,55 @@ func (c *Client) ThinkWithVision(userText, imagePath string) (string, error) {
 	b64 := base64.StdEncoding.EncodeToString(img)
 
 	visionMsg := message{Role: "user", Content: []part{
-		{Type: "text", Text: userText + "\n\n(A imagem é a tela atual do streamer, use como contexto APENAS se a pergunta for sobre o jogo/tela. Se a pergunta for sobre o chat ou outra coisa, responda a pergunta e ignore a imagem.)"},
-		{Type: "image_url", ImageURL: &imageURL{
-			URL:    "data:image/png;base64," + b64,
-			Detail: "low", // low = ~85 tokens por imagem; barato e suficiente pra contexto de jogo
-		}},
+		{Type: "text", Text: userText + "\n\n(A imagem é a tela atual do streamer, use como contexto APENAS se a pergunta for sobre o jogo/tela. Se for sobre o chat ou outra coisa, responda a pergunta e ignore a imagem.)"},
+		{Type: "image_url", ImageURL: &imageURL{URL: "data:image/png;base64," + b64, Detail: "low"}},
 	}}
-	return c.chat(visionMsg)
-}
 
-func (c *Client) chat(userMsg message) (string, error) {
-	// histórico: só a versão texto (extrai o texto se for multimodal)
-	histEntry := userMsg
-	if parts, ok := userMsg.Content.([]part); ok {
-		for _, p := range parts {
-			if p.Type == "text" {
-				histEntry = message{Role: "user", Content: p.Text}
-				break
-			}
-		}
-	}
+	histEntry := message{Role: "user", Content: userText}
 	c.history = append(c.history, histEntry)
 
-	c.mu.Lock()
-	system := c.persona
-	if c.memoryCtx != "" {
-		system += "\n\n" + c.memoryCtx
-	}
-	if c.extraCtx != "" {
-		system += "\n\nContexto (mensagens recentes do chat da live, use APENAS quando a pergunta do streamer for sobre o chat; caso contrário responda a pergunta normalmente e ignore este bloco; nunca invente mensagens):\n" + c.extraCtx
-	}
-	ctxLen := len(c.extraCtx)
-	c.mu.Unlock()
-	log.Printf("[debug] extraCtx no prompt: %d chars", ctxLen)
-	msgs := []message{{Role: "system", Content: system}}
+	msgs := []message{{Role: "system", Content: c.systemPrompt()}}
 	start := 0
 	if len(c.history) > 10 {
 		start = len(c.history) - 10
 	}
-	// histórico (sem a última, que vai na versão completa) + mensagem atual
 	msgs = append(msgs, c.history[start:len(c.history)-1]...)
-	msgs = append(msgs, userMsg)
+	msgs = append(msgs, visionMsg)
 
+	reply, err := c.rawChat(msgs)
+	if err != nil {
+		return "", err
+	}
+	c.history = append(c.history, message{Role: "assistant", Content: reply})
+	return reply, nil
+}
+
+func (c *Client) ThinkStateless(prompt string) (string, error) {
+	return c.rawChat([]message{{Role: "user", Content: prompt}})
+}
+
+func (c *Client) VisionStateless(prompt, imagePath string) (string, error) {
+	img, err := os.ReadFile(imagePath)
+	if err != nil {
+		return "", err
+	}
+	b64 := base64.StdEncoding.EncodeToString(img)
+	return c.rawChat([]message{{Role: "user", Content: []part{
+		{Type: "text", Text: prompt},
+		{Type: "image_url", ImageURL: &imageURL{URL: "data:image/png;base64," + b64, Detail: "low"}},
+	}}})
+}
+
+// rawChat: chamada simples sem tools, sem histórico.
+func (c *Client) rawChat(msgs []message) (string, error) {
 	body, _ := json.Marshal(map[string]any{
 		"model":      c.model,
 		"messages":   msgs,
-		"max_tokens": 60,
+		"max_tokens": 150,
 	})
-
 	req, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
-
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("openai: %w", err)
@@ -148,7 +262,6 @@ func (c *Client) chat(userMsg message) (string, error) {
 		b, _ := io.ReadAll(resp.Body)
 		return "", fmt.Errorf("openai status %d: %s", resp.StatusCode, string(b))
 	}
-
 	var out struct {
 		Choices []struct {
 			Message struct {
@@ -161,76 +274,6 @@ func (c *Client) chat(userMsg message) (string, error) {
 	}
 	if len(out.Choices) == 0 {
 		return "", fmt.Errorf("openai: resposta vazia")
-	}
-	reply := out.Choices[0].Message.Content
-	c.history = append(c.history, message{Role: "assistant", Content: reply})
-	return reply, nil
-}
-
-
-// ThinkStateless: chamada isolada, sem histórico e sem persona de conversa.
-// Para classificadores e vereditos de sistema — não contamina a conversa.
-func (c *Client) ThinkStateless(prompt string) (string, error) {
-	body, _ := json.Marshal(map[string]any{
-		"model":      c.model,
-		"messages":   []message{{Role: "user", Content: prompt}},
-		"max_tokens": 100,
-	})
-	req, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+c.apiKey)
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	var out struct {
-		Choices []struct {
-			Message struct{ Content string `json:"content"` } `json:"message"`
-		} `json:"choices"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return "", err
-	}
-	if len(out.Choices) == 0 {
-		return "", fmt.Errorf("resposta vazia")
-	}
-	return out.Choices[0].Message.Content, nil
-}
-
-// VisionStateless: veredito com imagem, sem histórico.
-func (c *Client) VisionStateless(prompt, imagePath string) (string, error) {
-	img, err := os.ReadFile(imagePath)
-	if err != nil {
-		return "", err
-	}
-	b64 := base64.StdEncoding.EncodeToString(img)
-	body, _ := json.Marshal(map[string]any{
-		"model": c.model,
-		"messages": []message{{Role: "user", Content: []part{
-			{Type: "text", Text: prompt},
-			{Type: "image_url", ImageURL: &imageURL{URL: "data:image/png;base64," + b64, Detail: "low"}},
-		}}},
-		"max_tokens": 100,
-	})
-	req, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+c.apiKey)
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	var out struct {
-		Choices []struct {
-			Message struct{ Content string `json:"content"` } `json:"message"`
-		} `json:"choices"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return "", err
-	}
-	if len(out.Choices) == 0 {
-		return "", fmt.Errorf("resposta vazia")
 	}
 	return out.Choices[0].Message.Content, nil
 }

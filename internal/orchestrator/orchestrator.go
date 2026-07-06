@@ -10,6 +10,7 @@ import (
 
 	"github.com/CarlosZambonii/backseat/internal/brain"
 	"github.com/CarlosZambonii/backseat/internal/chat"
+	"github.com/CarlosZambonii/backseat/internal/tools"
 	"github.com/CarlosZambonii/backseat/internal/config"
 	"github.com/CarlosZambonii/backseat/internal/memory"
 	"github.com/CarlosZambonii/backseat/internal/capture"
@@ -23,6 +24,7 @@ type Orchestrator struct {
 	Voice  *voice.Client
 	Cfg    *config.Config
 	Chat   chat.Source
+	Search *tools.Searcher
 	Memory *memory.Store
 
 	lastMention time.Time
@@ -126,6 +128,14 @@ func (o *Orchestrator) Run() {
 		o.Brain.SetPersona(o.Cfg.Snapshot().Persona)
 		if o.Memory != nil {
 			o.Memory.AppendSession("streamer", text)
+		}
+
+		// busca proativa: se a fala pede fato atual, busca antes e injeta no contexto
+		if o.Search != nil && o.Search.Enabled() && needsSearch(text) {
+			if res, err := o.Search.Search(text); err == nil {
+				log.Printf("[busca] %s", text)
+				text = text + "\n\n[Resultado de busca web atual, use para responder]:\n" + res
+			}
 		}
 
 		var reply string
@@ -411,4 +421,18 @@ func (o *Orchestrator) consolidator() {
 			o.Memory.ClearSession()
 		}
 	}
+}
+
+// needsSearch detecta se a fala precisa de fato atual da web.
+func needsSearch(text string) bool {
+	t := strings.ToLower(text)
+	kw := []string{"patch", "versão", "versao", "atual", "último", "ultimo", "última", "ultima",
+		"adicionad", "lançad", "lancad", "novo campeão", "novo campeao", "notícia", "noticia",
+		"que dia", "que horas são", "hoje é", "quem ganhou", "resultado", "quando sai", "quando lança"}
+	for _, k := range kw {
+		if strings.Contains(t, k) {
+			return true
+		}
+	}
+	return false
 }

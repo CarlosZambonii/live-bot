@@ -8,6 +8,7 @@ import (
 	"github.com/CarlosZambonii/backseat/internal/brain"
 	"github.com/CarlosZambonii/backseat/internal/chat"
 	"github.com/CarlosZambonii/backseat/internal/config"
+	"github.com/CarlosZambonii/backseat/internal/tools"
 	"github.com/CarlosZambonii/backseat/internal/memory"
 	"github.com/CarlosZambonii/backseat/internal/orchestrator"
 	"github.com/CarlosZambonii/backseat/internal/stt"
@@ -53,6 +54,9 @@ func main() {
 	}
 
 	cfg := config.Default(env("PERSONA", defaultPersona))
+	searcher := tools.NewSearcher(os.Getenv("TAVILY_API_KEY"))
+	br := brain.New(apiKey, env("OPENAI_MODEL", "gpt-4o-mini"), env("PERSONA", defaultPersona))
+	br.SetSearcher(searcher)
 	go func() {
 		if err := cfg.Serve("127.0.0.1:8090", mem); err != nil {
 			log.Printf("[config] server: %v", err)
@@ -61,9 +65,10 @@ func main() {
 
 	o := &orchestrator.Orchestrator{
 		STT:          stt.New(env("VOICEBOX_URL", "http://127.0.0.1:17493"), env("STT_MODEL", "whisper-base")),
-		Brain:        brain.New(apiKey, env("OPENAI_MODEL", "gpt-4o-mini"), env("PERSONA", defaultPersona)),
+		Brain:        br,
 		Voice:        voice.New(env("VOICEBOX_URL", "http://127.0.0.1:17493"), env("TTS_ENGINE", "kokoro"), env("TTS_LANGUAGE", "pt"), env("TTS_PROFILE_ID", "")),
 		Cfg:          cfg,
+		Search:       searcher,
 		Chat:         chatSrc,
 		Memory:       mem,
 	}
