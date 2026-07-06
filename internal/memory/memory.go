@@ -29,7 +29,10 @@ func New(redisAddr, pgDSN string) (*Store, error) {
 		return nil, fmt.Errorf("postgres ping: %w", err)
 	}
 	s := &Store{rdb: rdb, db: db}
-	return s, s.migrate()
+	if err := s.migrate(); err != nil {
+		return nil, err
+	}
+	return s, s.migratePersonas()
 }
 
 func (s *Store) migrate() error {

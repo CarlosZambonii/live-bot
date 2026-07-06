@@ -54,7 +54,7 @@ func main() {
 
 	cfg := config.Default(env("PERSONA", defaultPersona))
 	go func() {
-		if err := cfg.Serve("127.0.0.1:8090"); err != nil {
+		if err := cfg.Serve("127.0.0.1:8090", mem); err != nil {
 			log.Printf("[config] server: %v", err)
 		}
 	}()

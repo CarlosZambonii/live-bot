@@ -7,6 +7,8 @@ import (
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/CarlosZambonii/backseat/internal/memory"
 )
 
 //go:embed static
@@ -34,8 +36,8 @@ func toDTO(c Config) dto {
 	}
 }
 
-// Serve sobe a API de config em addr. Bloqueante.
-func (c *Config) Serve(addr string) error {
+// Serve sobe a API de config + painel + rotas de personas. Bloqueante.
+func (c *Config) Serve(addr string, store *memory.Store) error {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/config", func(w http.ResponseWriter, r *http.Request) {
@@ -81,6 +83,12 @@ func (c *Config) Serve(addr string) error {
 			http.Error(w, "método não suportado", http.StatusMethodNotAllowed)
 		}
 	})
+
+	if store != nil {
+		PersonaAPI(mux, store, func(prompt string) {
+			c.Update(func(cfg *Config) { cfg.Persona = prompt })
+		})
+	}
 
 	sub, _ := fs.Sub(staticFS, "static")
 	mux.Handle("/", http.FileServer(http.FS(sub)))
