@@ -25,6 +25,13 @@ type Client struct {
 	memoryCtx string // fatos de longo prazo, carregados no boot
 }
 
+// SetPersona troca a persona ao vivo.
+func (c *Client) SetPersona(p string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.persona = p
+}
+
 // SetMemory define o bloco de memória de longo prazo do system prompt.
 func (c *Client) SetMemory(m string) {
 	c.mu.Lock()

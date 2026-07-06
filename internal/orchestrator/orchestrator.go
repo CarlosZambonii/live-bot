@@ -10,6 +10,7 @@ import (
 
 	"github.com/CarlosZambonii/backseat/internal/brain"
 	"github.com/CarlosZambonii/backseat/internal/chat"
+	"github.com/CarlosZambonii/backseat/internal/config"
 	"github.com/CarlosZambonii/backseat/internal/memory"
 	"github.com/CarlosZambonii/backseat/internal/capture"
 	"github.com/CarlosZambonii/backseat/internal/stt"
@@ -20,18 +21,13 @@ type Orchestrator struct {
 	STT    *stt.Client
 	Brain  *brain.Client
 	Voice  *voice.Client
-	Vision bool
+	Cfg    *config.Config
 	Chat   chat.Source
 	Memory *memory.Store
 
-	VADThreshold float64
-
-	mentionCooldown time.Duration
-	lastMention     time.Time
-	spontCooldown   time.Duration
-	lastSpont       time.Time
-	autoCooldown    time.Duration
-	lastAuto        time.Time
+	lastMention time.Time
+	lastSpont   time.Time
+	lastAuto    time.Time
 	activityMu      sync.Mutex
 	lastActivity    time.Time
 	speaking        sync.Mutex // serializa quem usa a voz
@@ -50,8 +46,6 @@ func (o *Orchestrator) Run() {
 				log.Printf("[chat] %v", err)
 			}
 		}()
-		o.mentionCooldown = 45 * time.Second
-		o.spontCooldown = 150 * time.Second
 		go func() {
 			for m := range o.Chat.Messages() {
 				log.Printf("[chat] %s: %s", m.User, m.Text)
@@ -59,8 +53,9 @@ func (o *Orchestrator) Run() {
 				o.Brain.SetContext(buf.Context())
 
 				if mentionsDora(m.Text) {
-					if time.Since(o.lastMention) < o.mentionCooldown {
-						log.Printf("[menção] %s chamou, mas cooldown ativo (%.0fs restantes)", m.User, (o.mentionCooldown - time.Since(o.lastMention)).Seconds())
+					cd := o.Cfg.Snapshot().MentionCooldown
+					if time.Since(o.lastMention) < cd {
+						log.Printf("[menção] %s chamou, mas cooldown ativo (%.0fs restantes)", m.User, (cd - time.Since(o.lastMention)).Seconds())
 						continue
 					}
 					o.lastMention = time.Now()
@@ -80,14 +75,11 @@ func (o *Orchestrator) Run() {
 		go o.consolidator()
 	}
 
-	listener := stt.NewListener(o.VADThreshold)
+	listener := stt.NewListener(o.Cfg.Snapshot().VADThreshold)
 	o.segments = listener.Segments
 
 	// watcher de tela: comenta eventos sozinha
-	if o.Vision {
-		o.autoCooldown = 90 * time.Second
-		go o.screenWatcher()
-	}
+	go o.screenWatcher()
 
 	// watcher de silêncio: cutuca depois de mudez prolongada
 	o.touchActivity()
@@ -97,7 +89,7 @@ func (o *Orchestrator) Run() {
 			log.Fatalf("[mic] %v", err)
 		}
 	}()
-	log.Printf("[loop] escuta contínua ligada (VAD threshold=%.0f, visão=%v). Ctrl+C para sair.", o.VADThreshold, o.Vision)
+	log.Printf("[loop] escuta contínua ligada (config viva em :8090). Ctrl+C para sair.")
 
 	for wavPath := range listener.Segments {
 		o.muteMu.Lock()
@@ -131,12 +123,13 @@ func (o *Orchestrator) Run() {
 		}
 		log.Printf("[você] %s", text)
 		o.touchActivity()
+		o.Brain.SetPersona(o.Cfg.Snapshot().Persona)
 		if o.Memory != nil {
 			o.Memory.AppendSession("streamer", text)
 		}
 
 		var reply string
-		if o.Vision {
+		if o.Cfg.Snapshot().Vision {
 			if shot, err := capture.Screenshot(); err == nil {
 				tBrain := time.Now()
 				reply, err = o.Brain.ThinkWithVision(text, shot)
@@ -247,10 +240,11 @@ func (o *Orchestrator) answerMention(m chat.Message) {
 // maybeAnswerSpontaneous decide se responde uma mensagem que NÃO menciona a Dora.
 // Travas em ordem barata->cara: budget -> dado -> classificador LLM -> resposta.
 func (o *Orchestrator) maybeAnswerSpontaneous(m chat.Message) {
-	if time.Since(o.lastSpont) < o.spontCooldown {
+	snap := o.Cfg.Snapshot()
+	if time.Since(o.lastSpont) < snap.SpontCooldown {
 		return // budget estourado, nem gasta classificação
 	}
-	if rand.Float64() > 0.6 {
+	if rand.Float64() > snap.SpontChance {
 		return // dado: 40% das candidatas morrem aqui, mantém imprevisível
 	}
 	go func() {
@@ -259,7 +253,7 @@ func (o *Orchestrator) maybeAnswerSpontaneous(m chat.Message) {
 			return
 		}
 		// re-checa o budget (a classificação levou tempo, outra goroutine pode ter falado)
-		if time.Since(o.lastSpont) < o.spontCooldown {
+		if time.Since(o.lastSpont) < o.Cfg.Snapshot().SpontCooldown {
 			return
 		}
 		o.lastSpont = time.Now()
@@ -331,7 +325,11 @@ func (o *Orchestrator) screenWatcher() {
 	ticker := time.NewTicker(20 * time.Second)
 	defer ticker.Stop()
 	for range ticker.C {
-		if time.Since(o.lastAuto) < o.autoCooldown {
+		snap := o.Cfg.Snapshot()
+		if !snap.Vision {
+			continue
+		}
+		if time.Since(o.lastAuto) < snap.AutoCooldown {
 			continue // budget de autônomas
 		}
 		shot, err := capture.Screenshot()
