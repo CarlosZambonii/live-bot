@@ -1,11 +1,16 @@
 package config
 
 import (
+	"embed"
 	"encoding/json"
+	"io/fs"
 	"log"
 	"net/http"
 	"time"
 )
+
+//go:embed static
+var staticFS embed.FS
 
 type dto struct {
 	Persona         string  `json:"persona"`
@@ -77,6 +82,9 @@ func (c *Config) Serve(addr string) error {
 		}
 	})
 
-	log.Printf("[config] API em http://%s/config", addr)
+	sub, _ := fs.Sub(staticFS, "static")
+	mux.Handle("/", http.FileServer(http.FS(sub)))
+
+	log.Printf("[config] painel em http://%s — API em /config", addr)
 	return http.ListenAndServe(addr, mux)
 }
