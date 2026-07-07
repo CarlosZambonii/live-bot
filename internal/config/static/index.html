@@ -66,6 +66,11 @@
 </div>
 
 <div class="card">
+  <h2>Objetos de cena</h2>
+  <div id="objBtns" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+</div>
+
+<div class="card">
   <h2>Comportamento</h2>
   <div class="row"><label>Cooldown menção</label><input type="range" id="mention_cooldown_s" min="10" max="180" step="5"><span class="val" id="v_mention"></span></div>
   <div class="row"><label>Cooldown espontânea</label><input type="range" id="spont_cooldown_s" min="30" max="600" step="10"><span class="val" id="v_spont"></span></div>
@@ -142,6 +147,21 @@ function renderAnims(){
   });
 }
 renderAnims();
+
+const OBJECTS = ['suor','coracao','zzz','surpresa','nota','raiva','none'];
+function renderObjects(){
+  const el = document.getElementById('objBtns');
+  if (!el) return;
+  el.innerHTML = '';
+  OBJECTS.forEach(o => {
+    const b = document.createElement('button');
+    b.className = 'ghost'; b.textContent = o === 'none' ? 'limpar' : o;
+    b.onclick = () => { fetch('/object?name='+o, {method:'POST'}); toast(); };
+    el.appendChild(b);
+  });
+}
+renderObjects();
+
 
 function connectFeed(){
   const ws = new WebSocket(`ws://${location.host}/ws`);

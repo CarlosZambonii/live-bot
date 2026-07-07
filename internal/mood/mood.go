@@ -13,6 +13,7 @@ type State struct {
 	anim string
 	mouth float64
 	lastSaid string
+	object string
 }
 
 var Valid = map[string]bool{
@@ -104,4 +105,15 @@ func (s *State) LastSaid() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.lastSaid
+}
+func (s *State) SetObject(o string) {
+	s.mu.Lock()
+	s.object = o
+	s.mu.Unlock()
+}
+
+func (s *State) Object() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.object
 }

@@ -37,6 +37,29 @@ document.body.appendChild(renderer.domElement);
 scene.add(new THREE.DirectionalLight(0xffffff, Math.PI));
 scene.add(new THREE.AmbientLight(0xffffff, 0.5));
 
+// --- EMOTES ANIME (ícones sobre a cabeça) ---
+function makeEmote(emoji){
+  const cv = document.createElement('canvas'); cv.width = 128; cv.height = 128;
+  const ctx = cv.getContext('2d');
+  ctx.font = '96px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(emoji, 64, 72);
+  const tex = new THREE.CanvasTexture(cv);
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
+  spr.scale.set(0.3, 0.3, 0.3);
+  spr.visible = false;
+  scene.add(spr);
+  return spr;
+}
+const sceneObjects = {
+  suor:    makeEmote('💧'),
+  coracao: makeEmote('❤️'),
+  zzz:     makeEmote('💤'),
+  surpresa:makeEmote('❗'),
+  nota:    makeEmote('🎵'),
+  raiva:   makeEmote('💢'),
+};
+let forcedObject = null;
+
 let vrm = null, mixer = null, currentAction = null;
 const animClips = {}; // nome -> AnimationClip
 
@@ -92,6 +115,7 @@ async function playAnim(name){
   } catch(e){ console.log('anim erro', name, e); }
 }
 window.playAnim = playAnim;
+window.showObject = (name) => { forcedObject = (name === 'none') ? null : name; };
 
 // soundboard: efeitos sintéticos (trocar por mp3 depois)
 let audioCtx = null;
@@ -143,6 +167,23 @@ function animate(){
   const dt = Math.min(clock.getDelta(), 0.05);
   const t = clock.elapsedTime;
   if (mixer) mixer.update(dt);
+  // emotes: forçado (teste) ou por humor
+  for (const k in sceneObjects) sceneObjects[k].visible = false;
+  const moodEmote = { entediada:'zzz', animada:'nota', zoeira:'coracao', provocada:'raiva', surpresa:'surpresa' };
+  const forced = forcedObject || state.object || moodEmote[state.mood];
+  if (forced && sceneObjects[forced]) {
+    const spr = sceneObjects[forced];
+    spr.visible = true;
+    // flutua sobre a cabeça (direita), com bobbing
+    if (vrm && vrm.humanoid) {
+      const head = vrm.humanoid.getNormalizedBoneNode('head');
+      if (head) {
+        const p = new THREE.Vector3();
+        head.getWorldPosition(p);
+        spr.position.set(p.x + 0.18, p.y + 0.22 + Math.sin(t*3)*0.02, p.z);
+      }
+    }
+  }
   if (vrm) {
     const em = vrm.expressionManager;
     const h = vrm.humanoid;

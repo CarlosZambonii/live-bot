@@ -24,7 +24,7 @@ func AvatarWS(mux *http.ServeMux, m *mood.State) {
 		ticker := time.NewTicker(100 * time.Millisecond)
 		defer ticker.Stop()
 		for range ticker.C {
-			state := map[string]any{"mood": m.Get(), "speaking": m.IsSpeaking(), "dancing": m.IsDancing(), "anim": m.Anim(), "mouth": m.Mouth(), "said": m.LastSaid()}
+			state := map[string]any{"mood": m.Get(), "speaking": m.IsSpeaking(), "dancing": m.IsDancing(), "anim": m.Anim(), "mouth": m.Mouth(), "said": m.LastSaid(), "object": m.Object()}
 			b, _ := json.Marshal(state)
 			if err := conn.WriteMessage(websocket.TextMessage, b); err != nil {
 				log.Println("[avatar] desconectado")
@@ -55,6 +55,19 @@ func AnimAPI(mux *http.ServeMux, m *mood.State) {
 			return
 		}
 		m.SetAnim(name)
+		w.Write([]byte("ok"))
+	})
+}
+
+// ObjectAPI força um objeto de cena: POST /object?name=cafe (ou none)
+func ObjectAPI(mux *http.ServeMux, m *mood.State) {
+	mux.HandleFunc("/object", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		name := r.URL.Query().Get("name")
+		if name == "none" {
+			name = ""
+		}
+		m.SetObject(name)
 		w.Write([]byte("ok"))
 	})
 }
