@@ -13,6 +13,7 @@ import (
 )
 
 type Client struct {
+	OnMouth func(float64)
 	baseURL  string
 	engine   string
 	language string
@@ -99,8 +100,57 @@ func (c *Client) Speak(text string) error {
 	}
 	tmp.Close()
 
-	// 4. toca
-	return exec.Command("aplay", "-q", tmp.Name()).Run()
+	// 4. toca com lip sync: pré-calcula envelope e avança durante o playback
+	env := readEnvelope(tmp.Name())
+	cmd := exec.Command("aplay", "-q", tmp.Name())
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	if c.OnMouth != nil && len(env) > 0 {
+		go func() {
+			step := 40 * time.Millisecond // ~25fps de boca
+			for _, level := range env {
+				c.OnMouth(level)
+				time.Sleep(step)
+			}
+			c.OnMouth(0)
+		}()
+	}
+	err = cmd.Wait()
+	if c.OnMouth != nil {
+		c.OnMouth(0)
+	}
+	return err
+}
+
+// readEnvelope lê um WAV PCM16 e devolve níveis de amplitude (0-1) a cada ~40ms.
+func readEnvelope(path string) []float64 {
+	data, err := os.ReadFile(path)
+	if err != nil || len(data) < 44 {
+		return nil
+	}
+	samples := data[44:] // pula header WAV
+	const sr = 22050     // taxa típica do kokoro; aproximação serve
+	frame := sr * 40 / 1000 * 2 // 40ms em bytes (16-bit)
+	var env []float64
+	for i := 0; i+frame <= len(samples); i += frame {
+		var sum float64
+		n := 0
+		for j := i; j < i+frame; j += 2 {
+			s := int16(uint16(samples[j]) | uint16(samples[j+1])<<8)
+			sum += float64(s) * float64(s)
+			n++
+		}
+		if n > 0 {
+			rms := (sum / float64(n))
+			level := rms / (8000.0 * 8000.0) // normaliza
+			if level > 1 {
+				level = 1
+			}
+			env = append(env, level)
+		}
+	}
+	return env
 }
 
 func (c *Client) status(id string) (*generation, error) {

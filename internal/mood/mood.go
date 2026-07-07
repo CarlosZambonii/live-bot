@@ -11,6 +11,7 @@ type State struct {
 	speaking bool
 	dancing bool
 	anim string
+	mouth float64
 }
 
 var Valid = map[string]bool{
@@ -78,4 +79,15 @@ func (s *State) Anim() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.anim
+}
+func (s *State) SetMouth(v float64) {
+	s.mu.Lock()
+	s.mouth = v
+	s.mu.Unlock()
+}
+
+func (s *State) Mouth() float64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.mouth
 }

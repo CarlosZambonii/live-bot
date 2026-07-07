@@ -140,9 +140,11 @@ function animate(){
     if (em) em.setValue('blink', Math.max(0, Math.min(1, blinkVal)));
     // lip sync visemes
     const visemes = ['aa','ih','ou','ee','oh'];
-    if (state.speaking) {
+    const amp = state.mouth || 0; // amplitude REAL do audio
+    if (state.speaking && amp > 0.02) {
       visemeT += dt;
-      if (visemeT > 0.09) { curViseme = visemes[Math.floor(Math.random()*visemes.length)]; visemeAmp = 0.5+Math.random()*0.5; visemeT = 0; }
+      if (visemeT > 0.08) { curViseme = visemes[Math.floor(Math.random()*visemes.length)]; visemeT = 0; }
+      visemeAmp = amp; // boca abre proporcional ao volume real
     } else visemeAmp = 0;
     for (const v of visemes){ const goal=(v===curViseme)?visemeAmp:0; visemeCur[v]=(visemeCur[v]||0)+(goal-(visemeCur[v]||0))*dt*18; if(em) em.setValue(v, visemeCur[v]); }
     // idle sutil só quando NÃO tem animação tocando

@@ -54,8 +54,10 @@ func main() {
 		mem = m
 	}
 
-	cfg := config.Default(env("PERSONA", defaultPersona))
 	moodState := mood.New()
+	vbox := voice.New(env("VOICEBOX_URL", "http://127.0.0.1:17493"), env("TTS_ENGINE", "kokoro"), env("TTS_LANGUAGE", "pt"), env("TTS_PROFILE_ID", ""))
+	vbox.OnMouth = func(v float64) { moodState.SetMouth(v) }
+	cfg := config.Default(env("PERSONA", defaultPersona))
 	searcher := tools.NewSearcher(os.Getenv("TAVILY_API_KEY"))
 	br := brain.New(apiKey, env("OPENAI_MODEL", "gpt-4o-mini"), env("PERSONA", defaultPersona))
 	br.SetSearcher(searcher)
@@ -68,7 +70,7 @@ func main() {
 	o := &orchestrator.Orchestrator{
 		STT:          stt.New(env("VOICEBOX_URL", "http://127.0.0.1:17493"), env("STT_MODEL", "whisper-base")),
 		Brain:        br,
-		Voice:        voice.New(env("VOICEBOX_URL", "http://127.0.0.1:17493"), env("TTS_ENGINE", "kokoro"), env("TTS_LANGUAGE", "pt"), env("TTS_PROFILE_ID", "")),
+		Voice:        vbox,
 		Cfg:          cfg,
 		Search:       searcher,
 		Mood:         moodState,
