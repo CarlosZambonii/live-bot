@@ -265,7 +265,10 @@ func (o *Orchestrator) answerMention(m chat.Message) {
 		return
 	}
 	log.Printf("[backseat->%s] %s", m.User, reply)
-	if o.Mood != nil { o.Mood.SetAnim("Goodbye") }
+	if o.Mood != nil {
+		gestos := []string{"Goodbye", "LookAround"}
+		o.Mood.SetAnim(gestos[time.Now().UnixNano()%2])
+	}
 	o.speak(reply)
 }
 

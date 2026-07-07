@@ -136,7 +136,14 @@ function animate(){
     let blinkVal = 0;
     const bp = blinkT - nextBlink;
     if (bp > 0 && bp < 0.15) blinkVal = 1 - Math.abs(bp - 0.075)/0.075;
-    else if (bp >= 0.15) { blinkT = 0; nextBlink = 2+Math.random()*3; }
+    else if (bp >= 0.15) {
+      blinkT = 0;
+      // humor muda o ritmo: animada pisca rápido, entediada devagar
+      let base = 3;
+      if (state.mood === 'animada' || state.mood === 'surpresa') base = 1.5;
+      else if (state.mood === 'entediada') base = 5;
+      nextBlink = base + Math.random()*2;
+    }
     if (em) em.setValue('blink', Math.max(0, Math.min(1, blinkVal)));
     // lip sync visemes
     const visemes = ['aa','ih','ou','ee','oh'];
@@ -155,8 +162,13 @@ function animate(){
       const head = h.getNormalizedBoneNode('head');
       if (head) { head.rotation.y = Math.sin(t*0.4)*0.06 + lookX*0.15; head.rotation.x = Math.sin(t*0.6)*0.03; }
       lookT += dt;
-      if (lookT > 2.5){ lookTX=(Math.random()-0.5)*2; lookTY=(Math.random()-0.5); lookT=0; }
-      lookX += (lookTX-lookX)*dt*2; lookY += (lookTY-lookY)*dt*2;
+      if (state.speaking) {
+        // falando: olha pra frente (streamer), com micro-variação
+        lookTX = Math.sin(t*1.5)*0.15; lookTY = 0;
+      } else if (lookT > 2.5) {
+        lookTX=(Math.random()-0.5)*2; lookTY=(Math.random()-0.5); lookT=0;
+      }
+      lookX += (lookTX-lookX)*dt*3; lookY += (lookTY-lookY)*dt*3;
     }
     vrm.update(dt);
   }
