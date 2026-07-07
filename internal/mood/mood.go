@@ -6,6 +6,7 @@ type State struct {
 	mu       sync.RWMutex
 	current  string
 	speaking bool
+	dancing bool
 }
 
 var Valid = map[string]bool{
@@ -42,4 +43,15 @@ func (s *State) IsSpeaking() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.speaking
+}
+func (s *State) SetDancing(b bool) {
+	s.mu.Lock()
+	s.dancing = b
+	s.mu.Unlock()
+}
+
+func (s *State) IsDancing() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.dancing
 }

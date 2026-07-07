@@ -12,20 +12,23 @@
 <div id="info">carregando...</div>
 <script type="importmap">
 { "imports": {
-  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-  "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@2.1.1/lib/three-vrm.module.js"
+  "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
+  "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3/lib/three-vrm.module.js",
+  "@pixiv/three-vrm-animation": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm-animation@3/lib/three-vrm-animation.module.js"
 }}
 </script>
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
+import { VRMAnimationLoaderPlugin, createVRMAnimationClip, VRMLookAtQuaternionProxy } from '@pixiv/three-vrm-animation';
 
 const info = document.getElementById('info');
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(30, innerWidth/innerHeight, 0.1, 20);
-camera.position.set(0, 1.2, 2.2);
+camera.position.set(0, 1.0, 3.0);
+camera.lookAt(0, 1.0, 0);
 const renderer = new THREE.WebGLRenderer({ alpha:true, antialias:true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(devicePixelRatio);
@@ -33,10 +36,16 @@ document.body.appendChild(renderer.domElement);
 scene.add(new THREE.DirectionalLight(0xffffff, Math.PI));
 scene.add(new THREE.AmbientLight(0xffffff, 0.5));
 
-let vrm = null;
-const loader = new GLTFLoader();
-loader.register(p => new VRMLoaderPlugin(p));
-loader.load('/avatar.vrm', (gltf) => {
+let vrm = null, mixer = null, currentAction = null;
+const animClips = {}; // nome -> AnimationClip
+
+const gltfLoader = new GLTFLoader();
+gltfLoader.crossOrigin = 'anonymous';
+gltfLoader.register(p => new VRMLoaderPlugin(p));
+gltfLoader.register(p => new VRMAnimationLoaderPlugin(p));
+const vrmaLoader = gltfLoader;
+
+gltfLoader.load('/avatar.vrm', (gltf) => {
   vrm = gltf.userData.vrm;
   VRMUtils.rotateVRM0(vrm);
   scene.add(vrm.scene);
@@ -45,25 +54,60 @@ loader.load('/avatar.vrm', (gltf) => {
     h.getNormalizedBoneNode('leftUpperArm').rotation.z = 1.2;
     h.getNormalizedBoneNode('rightUpperArm').rotation.z = -1.2;
   }
+  const proxy = new VRMLookAtQuaternionProxy(vrm.lookAt);
+  proxy.name = 'lookAtQuaternionProxy';
+  vrm.scene.add(proxy);
+  mixer = new THREE.AnimationMixer(vrm.scene);
   info.textContent = 'Dora viva';
 }, undefined, () => { info.textContent = 'erro: avatar.vrm faltando'; });
+
+// carrega uma vrma sob demanda e cacheia o clip
+async function loadAnim(name){
+  if (animClips[name]) return animClips[name];
+  return new Promise((res, rej) => {
+    vrmaLoader.load('/vrma/'+name+'.vrma', (gltf) => {
+      console.log('vrma full userData:', gltf.userData); console.log('animations arr:', gltf.animations);
+      const vrmAnim = gltf.userData.vrmAnimations?.[0];
+      if (!vrmAnim || !vrm) return rej('sem anim');
+      const clip = createVRMAnimationClip(vrmAnim, vrm);
+      animClips[name] = clip;
+      res(clip);
+    }, undefined, rej);
+  });
+}
+
+async function playAnim(name){
+  if (!mixer || !vrm) return;
+  try {
+    const clip = await loadAnim(name);
+    const action = mixer.clipAction(clip);
+    action.reset();
+    action.setLoop(THREE.LoopOnce);
+    action.clampWhenFinished = true;
+    if (currentAction) currentAction.fadeOut(0.3);
+    action.fadeIn(0.3).play();
+    currentAction = action;
+    info.textContent = 'animando: '+name;
+  } catch(e){ console.log('anim erro', name, e); }
+}
+window.playAnim = playAnim;
 
 let state = { mood:'neutra', speaking:false };
 function connectWS(){
   const ws = new WebSocket(`ws://${location.host}/ws`);
-  ws.onmessage = e => { state = JSON.parse(e.data); };
+  ws.onmessage = e => {
+    const s = JSON.parse(e.data);
+    if (s.anim && s.anim !== state.anim) playAnim(s.anim);
+    state = s;
+  };
   ws.onclose = () => setTimeout(connectWS, 1000);
 }
 connectWS();
 
-// lip sync real: captura o áudio do sistema? Não dá do navegador.
-// Então: quando speaking, boca varia com ruído pseudo-aleatório suave (parece fala real, não seno puro)
-let visemeT = 0, curViseme = 'aa', visemeAmp = 0; const visemeCur = {};
-
 const moodExpr = { animada:'happy', zoeira:'happy', provocada:'angry', surpresa:'surprised', entediada:'sad', neutra:'' };
 let curExpr = {happy:0,angry:0,sad:0,surprised:0,neutral:0};
-
-let blinkT = 0, nextBlink = 2, blinkPhase = 0;
+let visemeT = 0, curViseme = 'aa', visemeAmp = 0; const visemeCur = {};
+let blinkT = 0, nextBlink = 2;
 let lookT = 0, lookX = 0, lookY = 0, lookTX = 0, lookTY = 0;
 const clock = new THREE.Clock();
 
@@ -71,88 +115,47 @@ function animate(){
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
   const t = clock.elapsedTime;
+  if (mixer) mixer.update(dt);
   if (vrm) {
     const em = vrm.expressionManager;
     const h = vrm.humanoid;
-
-    // expressão: transição suave pro humor atual
-    const target = moodExpr[state.mood] || 'neutral';
+    const target = moodExpr[state.mood] || '';
     for (const k in curExpr) {
       const goal = (target && k === target) ? 0.7 : 0;
       curExpr[k] += (goal - curExpr[k]) * dt * 4;
       if (em) em.setValue(k, curExpr[k]);
     }
-
-    // vida facial: micro-expressões que evitam rosto morto
+    // vida facial
     if (em) {
       const talk = state.speaking ? 1 : 0.3;
-      // sobrancelhas sobem/descem sutilmente
       const browUp = (Math.sin(t*2.3)*0.5+0.5) * 0.25 * talk;
       em.setValue('surprised', Math.max(em.getValue?.('surprised')||0, browUp*0.3));
-      // leve sorriso base que pulsa (rosto vivo)
-      const microSmile = (Math.sin(t*0.8)*0.5+0.5) * 0.12;
-      // não sobrescreve expressão de humor forte; soma sutil
     }
-
-    // piscar: pulso rápido a cada nextBlink segundos
+    // piscar
     blinkT += dt;
     let blinkVal = 0;
     const bp = blinkT - nextBlink;
-    if (bp > 0 && bp < 0.15) {
-      blinkVal = 1 - Math.abs(bp - 0.075) / 0.075; // sobe e desce em 150ms
-    } else if (bp >= 0.15) {
-      blinkT = 0; nextBlink = 2 + Math.random() * 3;
-    }
+    if (bp > 0 && bp < 0.15) blinkVal = 1 - Math.abs(bp - 0.075)/0.075;
+    else if (bp >= 0.15) { blinkT = 0; nextBlink = 2+Math.random()*3; }
     if (em) em.setValue('blink', Math.max(0, Math.min(1, blinkVal)));
-
-    // lip sync: alterna entre vogais pra articular como fala real
+    // lip sync visemes
     const visemes = ['aa','ih','ou','ee','oh'];
     if (state.speaking) {
       visemeT += dt;
-      if (visemeT > 0.09) { // troca de viseme ~11x/s
-        curViseme = visemes[Math.floor(Math.random()*visemes.length)];
-        visemeAmp = 0.4 + Math.random()*0.5;
-        visemeT = 0;
-      }
-    } else { visemeAmp = 0; }
-    // aplica: o viseme atual sobe, os outros descem suave
-    for (const v of visemes) {
-      const goal = (v === curViseme) ? visemeAmp : 0;
-      visemeCur[v] = (visemeCur[v]||0) + (goal - (visemeCur[v]||0)) * dt * 18;
-      if (em) em.setValue(v, visemeCur[v]);
-    }
-
-    // respiração visível
-    if (h) {
+      if (visemeT > 0.09) { curViseme = visemes[Math.floor(Math.random()*visemes.length)]; visemeAmp = 0.5+Math.random()*0.5; visemeT = 0; }
+    } else visemeAmp = 0;
+    for (const v of visemes){ const goal=(v===curViseme)?visemeAmp:0; visemeCur[v]=(visemeCur[v]||0)+(goal-(visemeCur[v]||0))*dt*18; if(em) em.setValue(v, visemeCur[v]); }
+    // idle sutil só quando NÃO tem animação tocando
+    const idle = !currentAction || !currentAction.isRunning();
+    if (h && idle) {
       const chest = h.getNormalizedBoneNode('chest');
-      const spine = h.getNormalizedBoneNode('spine');
-      const breath = Math.sin(t * 1.6) * 0.035;
-      if (chest) chest.rotation.x = breath;
-      if (spine) spine.rotation.x = breath * 0.5;
-
-      // sway idle: troca de peso lenta
-      const hips = h.getNormalizedBoneNode('hips');
-      if (hips) {
-        hips.position.x = Math.sin(t * 0.5) * 0.01;
-        hips.rotation.y = Math.sin(t * 0.35) * 0.04;
-      }
-
-      // cabeça: micro-movimento + olhar
+      if (chest) chest.rotation.x = Math.sin(t*1.6)*0.035;
       const head = h.getNormalizedBoneNode('head');
-      if (head) {
-        const emph = state.speaking ? 2.5 : 1;
-        head.rotation.y = Math.sin(t * 0.4) * 0.06 + lookX * 0.15 + (state.speaking?Math.sin(t*3.5)*0.04:0);
-        head.rotation.x = Math.sin(t * 0.6) * 0.03 + (state.speaking?Math.sin(t*4.2)*0.03:0);
-      }
-
-      // olhar que vagueia
+      if (head) { head.rotation.y = Math.sin(t*0.4)*0.06 + lookX*0.15; head.rotation.x = Math.sin(t*0.6)*0.03; }
       lookT += dt;
-      if (lookT > 2.5) { lookTX = (Math.random()-0.5)*2; lookTY = (Math.random()-0.5); lookT = 0; }
-      lookX += (lookTX - lookX) * dt * 2;
-      lookY += (lookTY - lookY) * dt * 2;
-      if (vrm.lookAt) vrm.lookAt.applier?.applyYawPitch?.(lookX * 15, lookY * 10);
+      if (lookT > 2.5){ lookTX=(Math.random()-0.5)*2; lookTY=(Math.random()-0.5); lookT=0; }
+      lookX += (lookTX-lookX)*dt*2; lookY += (lookTY-lookY)*dt*2;
     }
-
     vrm.update(dt);
   }
   renderer.render(scene, camera);
