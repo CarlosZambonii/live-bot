@@ -32,3 +32,20 @@ Evolução das tools (function calling) — hoje ela tem buscar_web; adicionar:
 - Cada ação = uma tool nova no brain (controlar_musica, ajustar_volume, trocar_cena_obs)
 - GPT decide quando chamar, Go executa o comando no sistema
 - Tudo fazível sem GPU
+
+### Interação com recompensas — DUAS camadas
+
+**1. Channel Points (grátis, pontos por assistir)** — o principal
+- Viewer troca pontos acumulados por ações na Dora
+- Itens: "dar água" → bebe, "fazer dançar" → dança, "cutucar" → provocada, "elogiar" → animada, "dormir" → Sleepy
+- Fonte técnica: Twitch EventSub "channel.channel_points_custom_reward_redemption.add"
+- Barato, alto engajamento, o público "cuida/brinca" com ela = tamagotchi ao vivo
+
+**2. Recompensas pagas (subs, bits, donate)** — reações especiais
+- Sub novo → Dora agradece pelo nick + animação comemorativa (Clapping/Jump)
+- Bits/cheer → reação proporcional ao valor
+- Donate → ela lê/reage à mensagem
+- Fonte: EventSub (subs/bits) + integração de doação (StreamElements/StreamlabsX)
+
+Ambos: EventSub → gatilho no orchestrator → SetAnim + fala contextual.
+Sistema de animação por gatilho JÁ pronto — falta só ligar o EventSub.
