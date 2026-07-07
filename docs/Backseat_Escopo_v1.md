@@ -49,3 +49,39 @@ Evolução das tools (function calling) — hoje ela tem buscar_web; adicionar:
 
 Ambos: EventSub → gatilho no orchestrator → SetAnim + fala contextual.
 Sistema de animação por gatilho JÁ pronto — falta só ligar o EventSub.
+
+---
+
+## Backlog de ideias — "deixar a Dora mais viva" (filtrado)
+
+### Personalidade viva ✓
+- Relacionamento que evolui (mais íntima/atrevida ao longo de semanas, nível de amizade)
+- Opinião própria (torce por time, gosta/odeia jogos, gostos que aparecem sozinhos)
+- Humor muda com contexto (mau humor se perde muito, hype em win streak, sonolenta de madrugada)
+
+### Voz e áudio ✓
+- Cantarolar/reagir a música tocando
+- Sussurrar vs gritar (tom conforme o momento)
+- Risada/gargalhada real
+- Gírias regionais
+
+### Percepção ✓
+- Reconhecer o jogo e dar dicas reais SÓ SE PERGUNTADO (busca+visão) — não palpitar sozinha
+- Ler melhores comentários do chat em voz alta
+- Reagir à webcam (se usar)
+- Perceber horário ("boa madrugada, insônia de novo?")
+
+### Gamificação da Dora ✓ (o tamagotchi)
+- Stats visíveis: humor, energia, "fome"
+- Fases do dia: acorda, cansa, dorme ao longo da live
+- Roupas/skins desbloqueáveis por marcos do canal
+- Comemora marcos (X seguidores, aniversário dela)
+
+### Apostas com channel points ✓ (grátis)
+- Viewers apostam pontos no resultado de algo, Dora conduz a aposta
+
+### CORTADO (não fazer — fica chato):
+- Palpitar em decisões sem ser perguntado
+- Comentário esportivo/narração
+- Existência fora da live (postar sozinha, sentir falta, DM)
+- As "insanas" (duas Doras, modo história/lore, reconhecer convidados)
