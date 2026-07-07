@@ -27,6 +27,7 @@ type Orchestrator struct {
 	Chat   chat.Source
 	Search *tools.Searcher
 	Mood   *mood.State
+	VAD    *stt.VADClient
 	Memory *memory.Store
 
 	lastMention time.Time
@@ -120,6 +121,11 @@ func (o *Orchestrator) Run() {
 		}
 		start := time.Now()
 
+		if o.VAD != nil && !o.VAD.HasSpeech(wavPath) {
+			os.Remove(wavPath)
+			log.Println("[vad] segmento sem fala humana, descartado")
+			continue
+		}
 		tSTT := time.Now()
 		text, err := o.STT.Transcribe(wavPath)
 		log.Printf("[t] stt: %.1fs", time.Since(tSTT).Seconds())

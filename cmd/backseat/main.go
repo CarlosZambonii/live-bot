@@ -55,6 +55,7 @@ func main() {
 	}
 
 	moodState := mood.New()
+	vadClient := stt.NewVAD(env("VAD_URL", "http://127.0.0.1:17494"))
 	vbox := voice.New(env("VOICEBOX_URL", "http://127.0.0.1:17493"), env("TTS_ENGINE", "kokoro"), env("TTS_LANGUAGE", "pt"), env("TTS_PROFILE_ID", ""))
 	vbox.OnMouth = func(v float64) { moodState.SetMouth(v) }
 	cfg := config.Default(env("PERSONA", defaultPersona))
@@ -74,6 +75,7 @@ func main() {
 		Cfg:          cfg,
 		Search:       searcher,
 		Mood:         moodState,
+		VAD:          vadClient,
 		Chat:         chatSrc,
 		Memory:       mem,
 	}

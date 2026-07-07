@@ -6,6 +6,9 @@ cd ~/backseat
 echo "→ Postgres..."
 docker compose -f deploy/docker-compose.yml up -d
 
+echo "→ VAD sidecar..."
+(cd ~/backseat/sidecar && python3 vad_server.py &)
+
 echo "→ Voicebox (novo terminal)..."
 # abre o voicebox num terminal separado
 if command -v cosmic-term &>/dev/null; then
