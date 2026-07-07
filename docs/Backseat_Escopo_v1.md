@@ -85,3 +85,70 @@ Sistema de animação por gatilho JÁ pronto — falta só ligar o EventSub.
 - Comentário esportivo/narração
 - Existência fora da live (postar sozinha, sentir falta, DM)
 - As "insanas" (duas Doras, modo história/lore, reconhecer convidados)
+
+---
+
+## Objetos, físico e mundo (Dora habita um espaço)
+
+### Objetos e cenário
+- Entediada → puxa cadeira e senta, boceja
+- Objetos por humor/ação: café (cansada), controle (quer jogar), guarda-chuva (fala de chuva)
+- Quarto/cenário atrás que muda (dia/noite, decoração por marcos)
+- Pet da Dora andando pela cena
+- Come/bebe de verdade ("dar água" da lojinha vira animação de beber)
+
+### Brincadeiras físicas
+- Pular corda, chutar bola, malabarismo quando ociosa
+- Te imitar pela webcam (mediapipe lê tua pose → mapeia no VRM)
+- Dança nova rotacionando VRMAs
+- Exercício/alongamento entre partidas
+- Reagir fisicamente ao jogo (se esconder em susto, pular comemorando)
+
+### Expressão criativa
+- Desenhar/escrever num quadro na cena
+- Trocar roupa ao vivo (skins), por pedido do chat
+- Acessórios por comando (óculos, chapéu)
+- Efeitos ao redor (corações feliz, chuva triste, fogo brava)
+
+### Mundo reativo
+- Clima da cena segue o humor (sol/chuva/tempestade)
+- Iluminação muda com tom (aconchegante madrugada, vibrante hype)
+- Física: cabelo/roupa balançam, objetos caem
+- Câmera dinâmica (zoom no rosto sério, afasta na dança)
+
+### Comportamento espontâneo na cena
+- Você some → ela se distrai (celular, cochila, brinca com pet)
+- Rotina: chega "arrumando", sai "se despedindo"
+- Manias/tiques que viram marca
+- Reage a sons do ambiente
+
+---
+
+## PARECER DO CONSELHO — conceitos-base que unificam tudo
+
+### 1. Estado com inércia e persistência (FUNDAÇÃO — atacar primeiro)
+- Humor/energia evoluem DEVAGAR (momentum, não liga/desliga)
+- Se ficou brava, leva tempo pra voltar mesmo com gentileza
+- Energia decai ao longo da sessão (fases do dia: animada→cansada→sonolenta)
+- Estado sobrevive a restart (bot cai, volta sabendo humor/energia/contexto)
+
+### 2. Nível de relação que destrava comportamento
+- Trata diferente conforme convívio (formal dia 1 → íntima/atrevida mês 3)
+- "Nível de intimidade" sobe com horas juntos
+- Destrava apelidos, piadas próprias, atrevimento
+
+### 3. Fila de fala com prioridade + reações por raridade
+- Fila com prioridade: evento de jogo > menção > espontânea (não atropela)
+- Reações raras pra momentos épicos (escassez = valor, especial continua especial)
+- Ela tem "limites": provocada demais → fica de bico e ignora um tempo
+
+### Extras do Conselho
+- Memória de piadas com o chat (guardar treta específica, puxar semanas depois)
+- Preferências que emergem (decide que gosta de um jogo, fica animada nele)
+- Métricas de si mesma (falou demais? custo da sessão? — pode comentar)
+- Ganchos entre sessões (termina com "promessa", cobra na próxima)
+- Objetivo narrativo leve ("quero o canal em X seguidores")
+
+### Regra de ouro (das tuas escolhas)
+A Dora REAGE e responde, mas NÃO se impõe. Presença, não protagonista chata.
+Só palpita se perguntada. Não narra sozinha. Não age fora da live.
