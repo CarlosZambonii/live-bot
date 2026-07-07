@@ -185,7 +185,7 @@ func (o *Orchestrator) Run() {
 				continue
 			}
 		}
-		log.Printf("[backseat] %s", reply)
+		log.Printf("[backseat] %s", stripMood(reply))
 
 		tVoice := time.Now()
 		o.speak(reply)
@@ -205,7 +205,16 @@ func (o *Orchestrator) Run() {
 func (o *Orchestrator) speak(text string) {
 	o.speaking.Lock()
 	defer o.speaking.Unlock()
+	// extrai o humor do prefixo [humor] e limpa o texto (fonte única pra todas as rotas)
 	if o.Mood != nil {
+		m, clean := brain.ExtractMood(text)
+		if m != "neutra" || strings.HasPrefix(strings.TrimSpace(text), "[") {
+			o.Mood.Set(m)
+			if a := animForMood(m); a != "" {
+				o.Mood.SetAnim(a)
+			}
+		}
+		text = clean
 		o.Mood.SetSpeaking(true)
 		o.Mood.SetLastSaid(text)
 		defer o.Mood.SetSpeaking(false)
@@ -276,7 +285,7 @@ func (o *Orchestrator) answerMention(m chat.Message) {
 		log.Printf("[menção] brain: %v", err)
 		return
 	}
-	log.Printf("[backseat->%s] %s", m.User, reply)
+	log.Printf("[backseat->%s] %s", m.User, stripMood(reply))
 	if o.Mood != nil {
 		gestos := []string{"Goodbye", "LookAround"}
 		o.Mood.SetAnim(gestos[time.Now().UnixNano()%2])
@@ -318,7 +327,7 @@ reply, err = o.Brain.Think(prompt)
 			log.Printf("[espontânea] brain: %v", err)
 			return
 		}
-		log.Printf("[backseat->%s] %s", m.User, reply)
+		log.Printf("[backseat->%s] %s", m.User, stripMood(reply))
 		o.speak(reply)
 	}()
 }
@@ -445,7 +454,7 @@ func (o *Orchestrator) silenceWatcher() {
 		if err != nil {
 			continue
 		}
-		log.Printf("[backseat] %s", reply)
+		log.Printf("[backseat] %s", stripMood(reply))
 		o.speak(reply) // speak toca a atividade, resetando o timer
 	}
 }
@@ -549,4 +558,10 @@ func animForMood(m string) string {
 	default:
 		return ""
 	}
+}
+
+// stripMood remove o prefixo [humor] pra log limpo.
+func stripMood(s string) string {
+	_, clean := brain.ExtractMood(s)
+	return clean
 }

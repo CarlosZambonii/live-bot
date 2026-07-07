@@ -3,6 +3,11 @@
 set -e
 cd ~/backseat
 
+echo "→ limpando processos antigos..."
+pkill -f vad_server.py 2>/dev/null || true
+pkill -f "go run" 2>/dev/null || true
+sleep 1
+
 echo "→ Postgres..."
 docker compose -f deploy/docker-compose.yml up -d
 
