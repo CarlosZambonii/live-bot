@@ -8,6 +8,8 @@ import (
 type State struct {
 	mu       sync.RWMutex
 	current  string
+	target   string
+	targetHits int
 	speaking bool
 	dancing bool
 	anim string
@@ -31,8 +33,32 @@ func (s *State) Set(m string) {
 		m = "neutra"
 	}
 	s.mu.Lock()
-	s.current = m
-	s.mu.Unlock()
+	defer s.mu.Unlock()
+	if m == s.current {
+		s.target = m
+		s.targetHits = 0
+		return
+	}
+	// inércia: humor novo precisa de confirmações pra virar atual
+	if m == s.target {
+		s.targetHits++
+	} else {
+		s.target = m
+		s.targetHits = 1
+	}
+	// estados intensos resistem mais a mudar (custam +1 confirmação pra sair)
+	needed := 2
+	if s.current == "provocada" || s.current == "animada" {
+		needed = 3
+	}
+	// pra neutra é mais fácil (decai natural)
+	if m == "neutra" {
+		needed = 2
+	}
+	if s.targetHits >= needed {
+		s.current = m
+		s.targetHits = 0
+	}
 }
 
 func (s *State) Get() string {

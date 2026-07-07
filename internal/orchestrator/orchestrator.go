@@ -41,9 +41,16 @@ type Orchestrator struct {
 	muteMu          sync.Mutex
 	muteUntil       time.Time // segmentos capturados antes disso são eco dela
 	lastSpoken      string    // última fala dela (pro filtro de similaridade)
+	speechHigh      chan string // fila de fala prioritária (eventos, menções)
+	speechLow       chan string // fila de fala secundária (espontâneas, autônomas)
 }
 
 func (o *Orchestrator) Run() {
+	// fila de fala com prioridade: alta (eventos/menções) antes de baixa (espontâneas)
+	o.speechHigh = make(chan string, 8)
+	o.speechLow = make(chan string, 8)
+	go o.speechWorker()
+
 	// chat: consome mensagens e mantém o buffer de contexto atualizado
 	if o.Chat != nil {
 		buf := chat.NewBuffer(15)
@@ -202,9 +209,37 @@ func (o *Orchestrator) Run() {
 }
 
 // speak centraliza toda fala da Dora: serializa a boca e drena o eco.
+// speechWorker consome a fila de fala, sempre priorizando a alta.
+func (o *Orchestrator) speechWorker() {
+	for {
+		select {
+		case t := <-o.speechHigh:
+			o.speakNow(t)
+		default:
+			select {
+			case t := <-o.speechHigh:
+				o.speakNow(t)
+			case t := <-o.speechLow:
+				o.speakNow(t)
+			}
+		}
+	}
+}
+
+// speak enfileira uma fala de prioridade normal/baixa.
 func (o *Orchestrator) speak(text string) {
+	o.speechLow <- text
+}
+
+// speakPriority enfileira uma fala prioritária (eventos, menções).
+func (o *Orchestrator) speakPriority(text string) {
+	o.speechHigh <- text
+}
+
+func (o *Orchestrator) speakNow(text string) {
 	o.speaking.Lock()
 	defer o.speaking.Unlock()
+	// (execução real da fala; a ordenação por prioridade acontece em speak())
 	// extrai o humor do prefixo [humor] e limpa o texto (fonte única pra todas as rotas)
 	if o.Mood != nil {
 		m, clean := brain.ExtractMood(text)
@@ -290,7 +325,7 @@ func (o *Orchestrator) answerMention(m chat.Message) {
 		gestos := []string{"Goodbye", "LookAround"}
 		o.Mood.SetAnim(gestos[time.Now().UnixNano()%2])
 	}
-	o.speak(reply)
+	o.speakPriority(reply)
 }
 
 // maybeAnswerSpontaneous decide se responde uma mensagem que NÃO menciona a Dora.
@@ -426,7 +461,7 @@ func (o *Orchestrator) screenWatcher() {
 			}
 		}
 		log.Printf("[autônoma:%s] %s", tipo, v)
-		o.speak(v)
+		o.speakPriority(v)
 	}
 }
 
