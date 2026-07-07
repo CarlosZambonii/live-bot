@@ -158,3 +158,44 @@ Só palpita se perguntada. Não narra sozinha. Não age fora da live.
 - Redesenhar: layout organizado, visual bonito, talvez abas (Persona / Comportamento / Cena / Live)
 - Agrupar controles relacionados, feedback visual melhor
 - Considerar preview do avatar embutido no próprio painel
+
+---
+
+## STATUS dos objetos/físico/mundo (atualizado)
+
+### JÁ FEITO ✅
+- Efeitos ao redor por humor (corações/faíscas via partículas) ✅
+- Emotes anime sobre a cabeça (💢/❤️/💤/❗) ✅
+- Iluminação muda com o humor (cor da cena) ✅
+- Câmera dinâmica (zoom ao falar, afasta ao animar) ✅
+- Trocar skin (sistema pronto, falta ter mais modelos) ✅
+- Dança/animações rotacionadas por contexto ✅ (já temos as VRMAs por humor)
+
+### BACKLOG (ainda por fazer)
+**Objetos com interação real** (precisa animação casada com posição):
+- Entediada → puxa cadeira e senta, boceja
+- Café quando cansada, controle quando quer jogar, guarda-chuva se fala de chuva
+- Come/bebe de verdade (o "dar água" da lojinha → animação de beber)
+
+**Cenário/mundo:**
+- Quarto atrás dela que muda (dia/noite, decoração por marcos)
+- Clima da cena segue humor (sol/chuva/tempestade) — parcial: já temos luz
+- Física — cabelo/roupa balançam, objetos caem
+
+**Brincadeiras físicas:**
+- Pular corda, chutar bola, malabarismo quando ociosa
+- Te imitar pela webcam (mediapipe → pose no VRM)
+- Exercício/alongamento entre partidas
+- Reagir fisicamente ao jogo (se esconder em susto, comemorar pulando)
+
+**Expressão criativa:**
+- Desenhar/escrever num quadro
+- Acessórios por comando (óculos, chapéu)
+
+**Comportamento espontâneo na cena:**
+- Você some → se distrai (celular, cochila, brinca com pet)
+- Rotina: chega "arrumando", sai "se despedindo"
+- Manias/tiques que viram marca
+- Reage a sons do ambiente
+
+**Pet da Dora** — bichinho que anda pela cena, ela interage
