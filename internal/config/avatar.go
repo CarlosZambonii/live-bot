@@ -44,3 +44,17 @@ func DanceAPI(mux *http.ServeMux, m *mood.State) {
 		w.Write([]byte("ok"))
 	})
 }
+
+// AnimAPI dispara uma animação por nome: POST /anim?name=Clapping
+func AnimAPI(mux *http.ServeMux, m *mood.State) {
+	mux.HandleFunc("/anim", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		name := r.URL.Query().Get("name")
+		if name == "" {
+			http.Error(w, "name obrigatório", 400)
+			return
+		}
+		m.SetAnim(name)
+		w.Write([]byte("ok"))
+	})
+}

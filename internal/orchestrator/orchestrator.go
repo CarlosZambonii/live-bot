@@ -257,6 +257,7 @@ func (o *Orchestrator) answerMention(m chat.Message) {
 		return
 	}
 	log.Printf("[backseat->%s] %s", m.User, reply)
+	if o.Mood != nil { o.Mood.SetAnim("Goodbye") }
 	o.speak(reply)
 }
 

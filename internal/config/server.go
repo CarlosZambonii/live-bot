@@ -94,6 +94,7 @@ func (c *Config) Serve(addr string, store *memory.Store, m *mood.State) error {
 	if m != nil {
 		AvatarWS(mux, m)
 		DanceAPI(mux, m)
+		AnimAPI(mux, m)
 	}
 
 	sub, _ := fs.Sub(staticFS, "static")
