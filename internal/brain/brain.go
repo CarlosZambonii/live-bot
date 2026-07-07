@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,8 +24,9 @@ type Client struct {
 	persona string
 
 	mu        sync.Mutex
-	extraCtx  string
-	memoryCtx string
+	extraCtx   string
+	memoryCtx  string
+	narrative  string
 
 	search *tools.Searcher
 }
@@ -82,6 +84,12 @@ func (c *Client) SetMemory(m string) {
 	c.memoryCtx = m
 }
 
+func (c *Client) SetNarrative(n string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.narrative = n
+}
+
 func (c *Client) SetContext(ctx string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -98,9 +106,13 @@ func (c *Client) systemPrompt() string {
 	if c.memoryCtx != "" {
 		s += "\n\n" + c.memoryCtx
 	}
+	if c.narrative != "" {
+		s += "\n\nO que está acontecendo AGORA na live (use pra acompanhar o momento, referencie naturalmente):\n" + c.narrative
+	}
 	if c.extraCtx != "" {
 		s += "\n\nContexto (mensagens recentes do chat da live, use APENAS quando a pergunta do streamer for sobre o chat; caso contrário responda normalmente e ignore este bloco; nunca invente mensagens):\n" + c.extraCtx
 	}
+	s += "\n\nPREFIXO DE HUMOR: comece TODA resposta com seu humor entre colchetes, um destes: [neutra] [animada] [zoeira] [entediada] [surpresa] [provocada]. Exemplo: \"[zoeira] morreu de novo, hein campeão\". O colchete não é falado, é só marcação."
 	return s
 }
 
@@ -276,4 +288,25 @@ func (c *Client) rawChat(msgs []message) (string, error) {
 		return "", fmt.Errorf("openai: resposta vazia")
 	}
 	return out.Choices[0].Message.Content, nil
+}
+
+
+// ExtractMood separa o prefixo [humor] do texto. Devolve (humor, textoLimpo).
+// Se não houver prefixo válido, devolve ("neutra", textoOriginal).
+func ExtractMood(text string) (string, string) {
+	t := strings.TrimSpace(text)
+	if !strings.HasPrefix(t, "[") {
+		return "neutra", t
+	}
+	end := strings.Index(t, "]")
+	if end < 0 {
+		return "neutra", t
+	}
+	mood := strings.ToLower(strings.TrimSpace(t[1:end]))
+	clean := strings.TrimSpace(t[end+1:])
+	valid := map[string]bool{"neutra": true, "animada": true, "zoeira": true, "entediada": true, "surpresa": true, "provocada": true}
+	if !valid[mood] {
+		return "neutra", t
+	}
+	return mood, clean
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/CarlosZambonii/backseat/internal/tools"
 	"github.com/CarlosZambonii/backseat/internal/config"
 	"github.com/CarlosZambonii/backseat/internal/memory"
+	"github.com/CarlosZambonii/backseat/internal/mood"
 	"github.com/CarlosZambonii/backseat/internal/capture"
 	"github.com/CarlosZambonii/backseat/internal/stt"
 	"github.com/CarlosZambonii/backseat/internal/voice"
@@ -25,11 +26,13 @@ type Orchestrator struct {
 	Cfg    *config.Config
 	Chat   chat.Source
 	Search *tools.Searcher
+	Mood   *mood.State
 	Memory *memory.Store
 
 	lastMention time.Time
 	lastSpont   time.Time
 	lastAuto    time.Time
+	turnCount   int
 	activityMu      sync.Mutex
 	lastActivity    time.Time
 	speaking        sync.Mutex // serializa quem usa a voz
@@ -169,6 +172,11 @@ func (o *Orchestrator) Run() {
 		log.Printf("[t] voz (gerar+tocar): %.1fs", time.Since(tVoice).Seconds())
 		log.Printf("[latência] %.1fs (fala->fim da resposta)", time.Since(start).Seconds())
 
+		o.turnCount++
+		if o.Memory != nil && o.turnCount%6 == 0 {
+			go o.updateNarrative()
+		}
+
 
 	}
 }
@@ -177,6 +185,10 @@ func (o *Orchestrator) Run() {
 func (o *Orchestrator) speak(text string) {
 	o.speaking.Lock()
 	defer o.speaking.Unlock()
+	if o.Mood != nil {
+		o.Mood.SetSpeaking(true)
+		defer o.Mood.SetSpeaking(false)
+	}
 	if err := o.Voice.Speak(text); err != nil {
 		log.Printf("[voice] %v", err)
 	}
@@ -435,4 +447,18 @@ func needsSearch(text string) bool {
 		}
 	}
 	return false
+}
+
+// updateNarrative destila o transcript recente num resumo do "agora" da live.
+func (o *Orchestrator) updateNarrative() {
+	transcript := o.Memory.SessionTranscript()
+	if len(transcript) < 150 {
+		return
+	}
+	out, err := o.Brain.ThinkStateless("Resuma em 2 frases curtas o que está acontecendo AGORA nesta live, com base na conversa recente abaixo. Foque no momento atual: o que o streamer está fazendo, o clima, assuntos em andamento. Escreva como uma nota de contexto, não como diálogo.\n\n" + transcript)
+	if err != nil {
+		return
+	}
+	o.Brain.SetNarrative(strings.TrimSpace(out))
+	log.Printf("[narrativa] atualizada")
 }

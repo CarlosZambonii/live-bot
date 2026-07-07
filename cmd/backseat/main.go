@@ -8,6 +8,7 @@ import (
 	"github.com/CarlosZambonii/backseat/internal/brain"
 	"github.com/CarlosZambonii/backseat/internal/chat"
 	"github.com/CarlosZambonii/backseat/internal/config"
+	"github.com/CarlosZambonii/backseat/internal/mood"
 	"github.com/CarlosZambonii/backseat/internal/tools"
 	"github.com/CarlosZambonii/backseat/internal/memory"
 	"github.com/CarlosZambonii/backseat/internal/orchestrator"
@@ -54,11 +55,12 @@ func main() {
 	}
 
 	cfg := config.Default(env("PERSONA", defaultPersona))
+	moodState := mood.New()
 	searcher := tools.NewSearcher(os.Getenv("TAVILY_API_KEY"))
 	br := brain.New(apiKey, env("OPENAI_MODEL", "gpt-4o-mini"), env("PERSONA", defaultPersona))
 	br.SetSearcher(searcher)
 	go func() {
-		if err := cfg.Serve("127.0.0.1:8090", mem); err != nil {
+		if err := cfg.Serve("127.0.0.1:8090", mem, moodState); err != nil {
 			log.Printf("[config] server: %v", err)
 		}
 	}()
@@ -69,6 +71,7 @@ func main() {
 		Voice:        voice.New(env("VOICEBOX_URL", "http://127.0.0.1:17493"), env("TTS_ENGINE", "kokoro"), env("TTS_LANGUAGE", "pt"), env("TTS_PROFILE_ID", "")),
 		Cfg:          cfg,
 		Search:       searcher,
+		Mood:         moodState,
 		Chat:         chatSrc,
 		Memory:       mem,
 	}

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/CarlosZambonii/backseat/internal/memory"
+	"github.com/CarlosZambonii/backseat/internal/mood"
 )
 
 //go:embed static
@@ -37,7 +38,7 @@ func toDTO(c Config) dto {
 }
 
 // Serve sobe a API de config + painel + rotas de personas. Bloqueante.
-func (c *Config) Serve(addr string, store *memory.Store) error {
+func (c *Config) Serve(addr string, store *memory.Store, m *mood.State) error {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/config", func(w http.ResponseWriter, r *http.Request) {
@@ -88,6 +89,10 @@ func (c *Config) Serve(addr string, store *memory.Store) error {
 		PersonaAPI(mux, store, func(prompt string) {
 			c.Update(func(cfg *Config) { cfg.Persona = prompt })
 		})
+	}
+
+	if m != nil {
+		AvatarWS(mux, m)
 	}
 
 	sub, _ := fs.Sub(staticFS, "static")
