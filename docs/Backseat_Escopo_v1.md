@@ -152,3 +152,9 @@ Sistema de animação por gatilho JÁ pronto — falta só ligar o EventSub.
 ### Regra de ouro (das tuas escolhas)
 A Dora REAGE e responde, mas NÃO se impõe. Presença, não protagonista chata.
 Só palpita se perguntada. Não narra sozinha. Não age fora da live.
+
+### Reestruturar o painel da Dora (futuro)
+- Painel atual é funcional mas cresceu por patches (cards empilhados)
+- Redesenhar: layout organizado, visual bonito, talvez abas (Persona / Comportamento / Cena / Live)
+- Agrupar controles relacionados, feedback visual melhor
+- Considerar preview do avatar embutido no próprio painel

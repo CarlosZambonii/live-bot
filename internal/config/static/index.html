@@ -71,6 +71,11 @@
 </div>
 
 <div class="card">
+  <h2>Skins</h2>
+  <div id="skinBtns" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+</div>
+
+<div class="card">
   <h2>Comportamento</h2>
   <div class="row"><label>Cooldown menção</label><input type="range" id="mention_cooldown_s" min="10" max="180" step="5"><span class="val" id="v_mention"></span></div>
   <div class="row"><label>Cooldown espontânea</label><input type="range" id="spont_cooldown_s" min="30" max="600" step="10"><span class="val" id="v_spont"></span></div>
@@ -161,6 +166,21 @@ function renderObjects(){
   });
 }
 renderObjects();
+
+const SKINS = ['avatar'];
+function renderSkins(){
+  const el = document.getElementById('skinBtns');
+  if (!el) return;
+  el.innerHTML = '';
+  SKINS.forEach(s => {
+    const b = document.createElement('button');
+    b.className = 'ghost'; b.textContent = s;
+    b.onclick = () => { fetch('/skin?name='+s, {method:'POST'}); toast(); };
+    el.appendChild(b);
+  });
+}
+renderSkins();
+
 
 
 function connectFeed(){
