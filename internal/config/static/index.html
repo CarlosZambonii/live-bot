@@ -51,6 +51,11 @@
 </div>
 
 <div class="card">
+  <h2>Animações</h2>
+  <div id="animBtns" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+</div>
+
+<div class="card">
   <h2>Comportamento</h2>
   <div class="row"><label>Cooldown menção</label><input type="range" id="mention_cooldown_s" min="10" max="180" step="5"><span class="val" id="v_mention"></span></div>
   <div class="row"><label>Cooldown espontânea</label><input type="range" id="spont_cooldown_s" min="30" max="600" step="10"><span class="val" id="v_spont"></span></div>
@@ -113,6 +118,21 @@ async function saveConfig(){
   await fetch('/config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   toast();
 }
+
+const ANIMS = ['Clapping','Jump','Goodbye','LookAround','Thinking','Surprised','Angry','Sad','Sleepy','Blush','Relax'];
+function renderAnims(){
+  const el = document.getElementById('animBtns');
+  if (!el) return;
+  el.innerHTML = '';
+  ANIMS.forEach(a => {
+    const b = document.createElement('button');
+    b.className = 'ghost'; b.textContent = a;
+    b.onclick = () => { fetch('/anim?name='+a, {method:'POST'}); toast(); };
+    el.appendChild(b);
+  });
+}
+renderAnims();
+
 loadConfig();setInterval(loadConfig,15000);
 </script>
 </body>
