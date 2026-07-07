@@ -58,9 +58,9 @@ connectWS();
 
 // lip sync real: captura o áudio do sistema? Não dá do navegador.
 // Então: quando speaking, boca varia com ruído pseudo-aleatório suave (parece fala real, não seno puro)
-let mouthTarget = 0, mouthCur = 0;
+let visemeT = 0, curViseme = 'aa', visemeAmp = 0; const visemeCur = {};
 
-const moodExpr = { animada:'happy', zoeira:'happy', provocada:'angry', surpresa:'surprised', entediada:'sad', neutra:'neutral' };
+const moodExpr = { animada:'happy', zoeira:'happy', provocada:'angry', surpresa:'surprised', entediada:'sad', neutra:'' };
 let curExpr = {happy:0,angry:0,sad:0,surprised:0,neutral:0};
 
 let blinkT = 0, nextBlink = 2, blinkPhase = 0;
@@ -78,27 +78,49 @@ function animate(){
     // expressão: transição suave pro humor atual
     const target = moodExpr[state.mood] || 'neutral';
     for (const k in curExpr) {
-      const goal = (k === target) ? 0.75 : 0;
+      const goal = (target && k === target) ? 0.7 : 0;
       curExpr[k] += (goal - curExpr[k]) * dt * 4;
       if (em) em.setValue(k, curExpr[k]);
     }
 
-    // piscar
-    blinkT += dt;
-    if (blinkT > nextBlink) blinkPhase = 1;
-    if (blinkPhase > 0) {
-      blinkPhase += dt * 12;
-      const b = blinkPhase < 1 ? blinkPhase : (blinkPhase < 2 ? 2 - blinkPhase : 0);
-      if (em) em.setValue('blink', Math.max(0, Math.min(1, b)));
-      if (blinkPhase >= 2) { blinkPhase = 0; blinkT = 0; nextBlink = 2 + Math.random() * 3; }
+    // vida facial: micro-expressões que evitam rosto morto
+    if (em) {
+      const talk = state.speaking ? 1 : 0.3;
+      // sobrancelhas sobem/descem sutilmente
+      const browUp = (Math.sin(t*2.3)*0.5+0.5) * 0.25 * talk;
+      em.setValue('surprised', Math.max(em.getValue?.('surprised')||0, browUp*0.3));
+      // leve sorriso base que pulsa (rosto vivo)
+      const microSmile = (Math.sin(t*0.8)*0.5+0.5) * 0.12;
+      // não sobrescreve expressão de humor forte; soma sutil
     }
 
-    // lip sync: boca "conversa" quando speaking
+    // piscar: pulso rápido a cada nextBlink segundos
+    blinkT += dt;
+    let blinkVal = 0;
+    const bp = blinkT - nextBlink;
+    if (bp > 0 && bp < 0.15) {
+      blinkVal = 1 - Math.abs(bp - 0.075) / 0.075; // sobe e desce em 150ms
+    } else if (bp >= 0.15) {
+      blinkT = 0; nextBlink = 2 + Math.random() * 3;
+    }
+    if (em) em.setValue('blink', Math.max(0, Math.min(1, blinkVal)));
+
+    // lip sync: alterna entre vogais pra articular como fala real
+    const visemes = ['aa','ih','ou','ee','oh'];
     if (state.speaking) {
-      if (Math.random() < 0.3) mouthTarget = Math.random() * 0.7;
-    } else mouthTarget = 0;
-    mouthCur += (mouthTarget - mouthCur) * dt * 15;
-    if (em) em.setValue('aa', mouthCur);
+      visemeT += dt;
+      if (visemeT > 0.09) { // troca de viseme ~11x/s
+        curViseme = visemes[Math.floor(Math.random()*visemes.length)];
+        visemeAmp = 0.4 + Math.random()*0.5;
+        visemeT = 0;
+      }
+    } else { visemeAmp = 0; }
+    // aplica: o viseme atual sobe, os outros descem suave
+    for (const v of visemes) {
+      const goal = (v === curViseme) ? visemeAmp : 0;
+      visemeCur[v] = (visemeCur[v]||0) + (goal - (visemeCur[v]||0)) * dt * 18;
+      if (em) em.setValue(v, visemeCur[v]);
+    }
 
     // respiração visível
     if (h) {
@@ -118,8 +140,9 @@ function animate(){
       // cabeça: micro-movimento + olhar
       const head = h.getNormalizedBoneNode('head');
       if (head) {
-        head.rotation.y = Math.sin(t * 0.4) * 0.06 + lookX * 0.15;
-        head.rotation.x = Math.sin(t * 0.6) * 0.03;
+        const emph = state.speaking ? 2.5 : 1;
+        head.rotation.y = Math.sin(t * 0.4) * 0.06 + lookX * 0.15 + (state.speaking?Math.sin(t*3.5)*0.04:0);
+        head.rotation.x = Math.sin(t * 0.6) * 0.03 + (state.speaking?Math.sin(t*4.2)*0.03:0);
       }
 
       // olhar que vagueia
