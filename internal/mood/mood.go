@@ -1,12 +1,16 @@
 package mood
 
-import "sync"
+import (
+	"sync"
+	"time"
+)
 
 type State struct {
 	mu       sync.RWMutex
 	current  string
 	speaking bool
 	dancing bool
+	anim string
 }
 
 var Valid = map[string]bool{
@@ -54,4 +58,24 @@ func (s *State) IsDancing() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.dancing
+}
+func (s *State) SetAnim(a string) {
+	s.mu.Lock()
+	s.anim = a
+	s.mu.Unlock()
+	// auto-limpa depois de 3s (a animação toca uma vez e volta ao idle)
+	go func() {
+		time.Sleep(3 * time.Second)
+		s.mu.Lock()
+		if s.anim == a {
+			s.anim = ""
+		}
+		s.mu.Unlock()
+	}()
+}
+
+func (s *State) Anim() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.anim
 }

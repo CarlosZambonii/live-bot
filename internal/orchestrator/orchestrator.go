@@ -135,6 +135,7 @@ func (o *Orchestrator) Run() {
 
 		// busca proativa: se a fala pede fato atual, busca antes e injeta no contexto
 		if o.Search != nil && o.Search.Enabled() && needsSearch(text) {
+			if o.Mood != nil { o.Mood.SetAnim("Thinking") }
 			if res, err := o.Search.Search(text); err == nil {
 				log.Printf("[busca] %s", text)
 				text = text + "\n\n[Resultado de busca web atual, use para responder]:\n" + res
@@ -461,4 +462,20 @@ func (o *Orchestrator) updateNarrative() {
 	}
 	o.Brain.SetNarrative(strings.TrimSpace(out))
 	log.Printf("[narrativa] atualizada")
+}
+
+// animForMood devolve a animação VRMA que combina com o humor (ou "" pra nenhuma).
+func animForMood(m string) string {
+	switch m {
+	case "surpresa":
+		return "Surprised"
+	case "animada":
+		return "Clapping"
+	case "provocada":
+		return "Angry"
+	case "entediada":
+		return "Sleepy"
+	default:
+		return ""
+	}
 }
