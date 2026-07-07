@@ -35,7 +35,10 @@ func New(redisAddr, pgDSN string) (*Store, error) {
 	if err := s.migratePersonas(); err != nil {
 		return nil, err
 	}
-	return s, s.migrateRelationship()
+	if err := s.migrateRelationship(); err != nil {
+		return nil, err
+	}
+	return s, s.migrateViewers()
 }
 
 func (s *Store) migrate() error {

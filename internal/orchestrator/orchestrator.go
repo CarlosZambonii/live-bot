@@ -54,6 +54,11 @@ func (o *Orchestrator) Run() {
 		go func() {
 			for m := range o.Chat.Messages() {
 				log.Printf("[chat] %s: %s", m.User, m.Text)
+				if o.Memory != nil {
+					if regular := o.Memory.SeeViewer(m.User); regular {
+						o.Brain.SetContext(buf.Context() + "\n(Obs: " + m.User + " é um viewer regular, já apareceu em lives anteriores.)")
+					}
+				}
 				buf.Add(m)
 				o.Brain.SetContext(buf.Context())
 
@@ -372,7 +377,7 @@ func (o *Orchestrator) screenWatcher() {
 			continue
 		}
 		verdict, err := o.Brain.VisionStateless(
-			"Você está monitorando a tela do streamer de uma live. Se algo DIGNO DE COMENTÁRIO acabou de acontecer (morte no jogo, vitória, derrota, placar mudou drasticamente, algo bizarro ou engraçado na tela), responda com um comentário curto de co-host sobre isso, em português. Se for só gameplay normal, menu, tela parada ou nada especial, responda EXATAMENTE a palavra: NADA",
+			"Você monitora a tela do streamer. Se algo digno aconteceu, responda no formato: TIPO|comentário. TIPO é uma palavra: MORTE, VITORIA, PERIGO, ENGRACADO ou OUTRO. Exemplo: MORTE|morreu de novo, hein campeão. Se for gameplay normal/menu/nada, responda só: NADA",
 			shot)
 		capture.Cleanup(shot)
 		if err != nil {
@@ -383,8 +388,28 @@ func (o *Orchestrator) screenWatcher() {
 			continue
 		}
 		o.lastAuto = time.Now()
-		if o.Mood != nil { o.Mood.SetAnim("Jump") }
-		log.Printf("[autônoma] %s", v)
+		// separa TIPO|comentário
+		tipo, comentario := "OUTRO", v
+		if i := strings.Index(v, "|"); i > 0 {
+			tipo = strings.ToUpper(strings.TrimSpace(v[:i]))
+			comentario = strings.TrimSpace(v[i+1:])
+		}
+		v = comentario
+		if o.Mood != nil {
+			switch tipo {
+			case "MORTE":
+				o.Mood.SetAnim("Sad")
+			case "VITORIA":
+				o.Mood.SetAnim("Clapping")
+			case "PERIGO":
+				o.Mood.SetAnim("Surprised")
+			case "ENGRACADO":
+				o.Mood.SetAnim("Jump")
+			default:
+				o.Mood.SetAnim("LookAround")
+			}
+		}
+		log.Printf("[autônoma:%s] %s", tipo, v)
 		o.speak(v)
 	}
 }
@@ -458,6 +483,15 @@ func (o *Orchestrator) consolidator() {
 					}
 				}
 				log.Printf("[relação] observações consolidadas")
+			}
+		}
+		// extrai/cria um bordão interno da sessão
+		bordao, err3 := o.Brain.ThinkStateless("Com base na conversa abaixo, crie UM bordão curto ou piada interna que a co-host Dora poderia repetir nas próximas lives com este streamer (algo memorável que rolou). Máximo 8 palavras. Se nada rende, responda NADA.\n\n" + transcript)
+		if err3 == nil {
+			bordao = strings.TrimSpace(bordao)
+			if !strings.EqualFold(bordao, "NADA") && len(bordao) > 5 && len(bordao) < 80 {
+				o.Memory.AddObservation("Bordão interno pra reusar: " + bordao)
+				log.Printf("[bordão] %s", bordao)
 			}
 		}
 		o.Memory.ClearSession()
