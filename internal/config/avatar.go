@@ -79,7 +79,24 @@ func MoodAPI(mux *http.ServeMux, m *mood.State) {
 		set := r.URL.Query().Get("set")
 		if set != "" {
 			m.Set(set)
+			m.SetAnim(animForMoodAvatar(set))
 		}
 		w.Write([]byte("ok"))
 	})
+}
+
+func animForMoodAvatar(m string) string {
+	switch m {
+	case "surpresa":
+		return "Surprised"
+	case "animada":
+		return "Clapping"
+	case "provocada":
+		return "Angry"
+	case "entediada":
+		return "Sleepy"
+	case "zoeira":
+		return "Blush"
+	}
+	return ""
 }

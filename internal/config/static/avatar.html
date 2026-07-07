@@ -28,7 +28,7 @@ import { VRMAnimationLoaderPlugin, createVRMAnimationClip, VRMLookAtQuaternionPr
 const info = document.getElementById('info');
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(30, innerWidth/innerHeight, 0.1, 20);
-camera.position.set(0, 1.0, 3.0);
+camera.position.set(0, 1.05, 3.8);
 camera.lookAt(0, 1.0, 0);
 const renderer = new THREE.WebGLRenderer({ alpha:true, antialias:true });
 renderer.setSize(innerWidth, innerHeight);
@@ -36,7 +36,8 @@ renderer.setPixelRatio(devicePixelRatio);
 document.body.appendChild(renderer.domElement);
 const dirLight = new THREE.DirectionalLight(0xffffff, Math.PI);
 scene.add(dirLight);
-scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+const ambLight = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambLight);
 
 // --- EMOTES ANIME (ícones sobre a cabeça) ---
 function makeEmote(emoji){
@@ -188,17 +189,19 @@ function animate(){
   if (mixer) mixer.update(dt);
   // iluminação por humor (transição suave de cor)
   const moodLight = {
-    animada:   [1.0, 0.95, 0.7],  // quente/vibrante
-    zoeira:    [1.0, 0.8, 0.9],   // rosado
-    provocada: [1.0, 0.7, 0.6],   // avermelhado
-    surpresa:  [0.9, 0.95, 1.0],  // frio/branco
-    entediada: [0.7, 0.75, 0.9],  // azulado/apagado
+    animada:   [1.0, 0.85, 0.4],  // dourado forte
+    zoeira:    [1.0, 0.5, 0.75],  // rosa forte
+    provocada: [1.0, 0.4, 0.35],  // vermelho
+    surpresa:  [0.6, 0.8, 1.0],   // azul claro
+    entediada: [0.45, 0.55, 0.85],// azul apagado
     neutra:    [1.0, 1.0, 1.0],
   };
   const target = moodLight[state.mood] || moodLight.neutra;
-  dirLight.color.r += (target[0] - dirLight.color.r) * dt * 2;
-  dirLight.color.g += (target[1] - dirLight.color.g) * dt * 2;
-  dirLight.color.b += (target[2] - dirLight.color.b) * dt * 2;
+  dirLight.color.r += (target[0] - dirLight.color.r) * dt * 4;
+  dirLight.color.g += (target[1] - dirLight.color.g) * dt * 4;
+  dirLight.color.b += (target[2] - dirLight.color.b) * dt * 4;
+  // ambiente também acompanha (mais perceptível)
+  ambLight.color.copy(dirLight.color);
   // partículas por humor
   const moodParticle = { zoeira:'❤️', animada:'✨', provocada:'💢', surpresa:'⭐' };
   const pEmoji = moodParticle[state.mood];
