@@ -51,6 +51,18 @@ func (o *Orchestrator) Run() {
 	o.speechLow = make(chan string, 8)
 	go o.speechWorker()
 
+	// acumula tempo de convívio (nível de relação cresce com as horas juntos)
+	if o.Memory != nil {
+		go func() {
+			tick := time.NewTicker(5 * time.Minute)
+			defer tick.Stop()
+			for range tick.C {
+				total := o.Memory.AddMinutes(5)
+				log.Printf("[relação] convívio: %d min acumulados", total)
+			}
+		}()
+	}
+
 	// chat: consome mensagens e mantém o buffer de contexto atualizado
 	if o.Chat != nil {
 		buf := chat.NewBuffer(15)
@@ -95,6 +107,9 @@ func (o *Orchestrator) Run() {
 			mem += "\n\nO que você conhece sobre o jeito do streamer e a relação de vocês:\n- " + strings.Join(obs, "\n- ")
 			log.Printf("[relação] %d observações carregadas", len(obs))
 		}
+		relMin := o.Memory.RelMinutes()
+		mem += "\n\nNível de intimidade de vocês: " + relLevelDesc(relMin)
+		log.Printf("[relação] %d min de convívio", relMin)
 		if mem != "" {
 			o.Brain.SetMemory(mem)
 		}
@@ -599,4 +614,18 @@ func animForMood(m string) string {
 func stripMood(s string) string {
 	_, clean := brain.ExtractMood(s)
 	return clean
+}
+
+// relLevelDesc traduz minutos de convívio numa instrução de tom pra Dora.
+func relLevelDesc(min int) string {
+	switch {
+	case min < 60:
+		return "Vocês ainda se conhecem pouco. Seja simpática mas um pouco mais formal e reservada, como quem está conhecendo alguém."
+	case min < 300:
+		return "Vocês já têm alguma convivência. Pode ser mais descontraída e brincalhona, com intimidade moderada."
+	case min < 900:
+		return "Vocês são próximos agora. Pode usar apelidos carinhosos, brincadeiras internas e ser bem à vontade."
+	default:
+		return "Vocês são muito próximos, quase cúmplices. Seja atrevida, debochada no bom sentido, com total intimidade e piadas particulares de vocês."
+	}
 }
