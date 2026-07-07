@@ -73,9 +73,17 @@ func (o *Orchestrator) Run() {
 	}
 
 	if o.Memory != nil {
+		mem := ""
 		if facts := o.Memory.Facts(20); len(facts) > 0 {
-			o.Brain.SetMemory("O que você já sabe sobre o streamer e lives passadas:\n- " + strings.Join(facts, "\n- "))
+			mem += "O que você já sabe sobre o streamer e lives passadas:\n- " + strings.Join(facts, "\n- ")
 			log.Printf("[memória] %d fatos carregados", len(facts))
+		}
+		if obs := o.Memory.Observations(15); len(obs) > 0 {
+			mem += "\n\nO que você conhece sobre o jeito do streamer e a relação de vocês:\n- " + strings.Join(obs, "\n- ")
+			log.Printf("[relação] %d observações carregadas", len(obs))
+		}
+		if mem != "" {
+			o.Brain.SetMemory(mem)
 		}
 		go o.consolidator()
 	}
@@ -434,8 +442,22 @@ func (o *Orchestrator) consolidator() {
 		}
 		if n > 0 {
 			log.Printf("[memória] %d fatos consolidados", n)
-			o.Memory.ClearSession()
 		}
+		// extrai observações de relação (padrões, jeito, vínculo)
+		obs, err2 := o.Brain.ThinkStateless("Com base na conversa abaixo, extraia até 2 observações sobre o COMPORTAMENTO e JEITO do streamer (como ele reage, humor, manias, como trata a Dora, padrões). Não fatos objetivos, mas traços de personalidade e relação. Uma por linha, frase curta. Se nada relevante, responda NADA.\n\n" + transcript)
+		if err2 == nil {
+			obs = strings.TrimSpace(obs)
+			if !strings.EqualFold(obs, "NADA") {
+				for _, line := range strings.Split(obs, "\n") {
+					line = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "-"))
+					if len(line) > 10 {
+						o.Memory.AddObservation(line)
+					}
+				}
+				log.Printf("[relação] observações consolidadas")
+			}
+		}
+		o.Memory.ClearSession()
 	}
 }
 
