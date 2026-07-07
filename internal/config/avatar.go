@@ -24,7 +24,7 @@ func AvatarWS(mux *http.ServeMux, m *mood.State) {
 		ticker := time.NewTicker(100 * time.Millisecond)
 		defer ticker.Stop()
 		for range ticker.C {
-			state := map[string]any{"mood": m.Get(), "speaking": m.IsSpeaking(), "dancing": m.IsDancing(), "anim": m.Anim(), "mouth": m.Mouth(), "said": m.LastSaid(), "object": m.Object()}
+			state := map[string]any{"mood": m.Get(), "speaking": m.IsSpeaking(), "dancing": m.IsDancing(), "anim": m.Anim(), "mouth": m.Mouth(), "said": m.LastSaid(), "object": m.Object(), "skin": m.Skin()}
 			b, _ := json.Marshal(state)
 			if err := conn.WriteMessage(websocket.TextMessage, b); err != nil {
 				log.Println("[avatar] desconectado")
@@ -99,4 +99,15 @@ func animForMoodAvatar(m string) string {
 		return "Blush"
 	}
 	return ""
+}
+
+// SkinAPI troca a skin: POST /skin?name=avatar
+func SkinAPI(mux *http.ServeMux, m *mood.State) {
+	mux.HandleFunc("/skin", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		if n := r.URL.Query().Get("name"); n != "" {
+			m.SetSkin(n)
+		}
+		w.Write([]byte("ok"))
+	})
 }

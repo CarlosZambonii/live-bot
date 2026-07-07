@@ -14,6 +14,7 @@ type State struct {
 	mouth float64
 	lastSaid string
 	object string
+	skin   string
 }
 
 var Valid = map[string]bool{
@@ -116,4 +117,20 @@ func (s *State) Object() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.object
+}
+
+
+func (s *State) SetSkin(sk string) {
+	s.mu.Lock()
+	s.skin = sk
+	s.mu.Unlock()
+}
+
+func (s *State) Skin() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.skin == "" {
+		return "avatar"
+	}
+	return s.skin
 }

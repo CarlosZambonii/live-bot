@@ -88,7 +88,10 @@ gltfLoader.register(p => new VRMLoaderPlugin(p));
 gltfLoader.register(p => new VRMAnimationLoaderPlugin(p));
 const vrmaLoader = gltfLoader;
 
-gltfLoader.load('/avatar.vrm', (gltf) => {
+let currentSkin = 'avatar';
+function loadSkin(name){
+  gltfLoader.load('/skins/'+name+'.vrm', (gltf) => {
+  if (vrm) { scene.remove(vrm.scene); }
   vrm = gltf.userData.vrm;
   VRMUtils.rotateVRM0(vrm);
   scene.add(vrm.scene);
@@ -102,7 +105,9 @@ gltfLoader.load('/avatar.vrm', (gltf) => {
   vrm.scene.add(proxy);
   mixer = new THREE.AnimationMixer(vrm.scene);
   info.textContent = 'Dora viva';
-}, undefined, () => { info.textContent = 'erro: avatar.vrm faltando'; });
+  }, undefined, () => { info.textContent = 'erro: skin '+name+' faltando'; });
+}
+loadSkin('avatar');
 
 // carrega uma vrma sob demanda e cacheia o clip
 async function loadAnim(name){
@@ -164,6 +169,7 @@ function connectWS(){
   const ws = new WebSocket(`ws://${location.host}/ws`);
   ws.onmessage = e => {
     const s = JSON.parse(e.data);
+    if (s.skin && s.skin !== currentSkin) { currentSkin = s.skin; loadSkin(s.skin); }
     if (s.anim && s.anim !== state.anim) playAnim(s.anim);
     if (s.sfx && s.sfx !== state.sfx) sfx(s.sfx);
     const leg = document.getElementById('legenda');
@@ -287,6 +293,13 @@ function animate(){
     }
     vrm.update(dt);
   }
+  // câmera dinâmica: zoom no rosto ao falar, afasta ao animar
+  let camZ = 3.8, camY = 1.05;
+  if (currentAction && currentAction.isRunning()) { camZ = 4.2; camY = 1.0; } // afasta na animação
+  else if (state.speaking) { camZ = 3.0; camY = 1.25; } // aproxima no rosto ao falar
+  camera.position.z += (camZ - camera.position.z) * dt * 2;
+  camera.position.y += (camY - camera.position.y) * dt * 2;
+  camera.lookAt(0, 1.0, 0);
   renderer.render(scene, camera);
 }
 animate();

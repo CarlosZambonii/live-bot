@@ -97,6 +97,7 @@ func (c *Config) Serve(addr string, store *memory.Store, m *mood.State) error {
 		AnimAPI(mux, m)
 		ObjectAPI(mux, m)
 		MoodAPI(mux, m)
+		SkinAPI(mux, m)
 	}
 
 	sub, _ := fs.Sub(staticFS, "static")
