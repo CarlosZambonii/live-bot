@@ -372,6 +372,7 @@ func (o *Orchestrator) screenWatcher() {
 			continue
 		}
 		o.lastAuto = time.Now()
+		if o.Mood != nil { o.Mood.SetAnim("Jump") }
 		log.Printf("[autônoma] %s", v)
 		o.speak(v)
 	}
@@ -396,6 +397,7 @@ func (o *Orchestrator) silenceWatcher() {
 			continue
 		}
 		log.Printf("[silêncio] %.0fs de mudez, cutucando", quiet.Seconds())
+		if o.Mood != nil { o.Mood.SetAnim("LookAround") }
 		reply, err := o.Brain.Think("Faz mais de 3 minutos que ninguém fala nada na live. Quebre o silêncio: uma frase curta cutucando o streamer ou puxando assunto com o chat.")
 		if err != nil {
 			continue
@@ -476,6 +478,8 @@ func animForMood(m string) string {
 		return "Angry"
 	case "entediada":
 		return "Sleepy"
+	case "zoeira":
+		return "Blush"
 	default:
 		return ""
 	}
