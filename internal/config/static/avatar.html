@@ -25,7 +25,7 @@ import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 const info = document.getElementById('info');
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(30, innerWidth/innerHeight, 0.1, 20);
-camera.position.set(0, 1.3, 1.5);
+camera.position.set(0, 1.2, 2.2);
 const renderer = new THREE.WebGLRenderer({ alpha:true, antialias:true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(devicePixelRatio);
@@ -40,10 +40,14 @@ loader.load('/avatar.vrm', (gltf) => {
   vrm = gltf.userData.vrm;
   VRMUtils.rotateVRM0(vrm);
   scene.add(vrm.scene);
-  info.textContent = 'Dora carregada';
-}, undefined, (e) => { info.textContent = 'erro: coloque avatar.vrm na pasta static'; });
+  const h = vrm.humanoid;
+  if (h) {
+    h.getNormalizedBoneNode('leftUpperArm').rotation.z = 1.2;
+    h.getNormalizedBoneNode('rightUpperArm').rotation.z = -1.2;
+  }
+  info.textContent = 'Dora viva';
+}, undefined, () => { info.textContent = 'erro: avatar.vrm faltando'; });
 
-// estado vindo do bot
 let state = { mood:'neutra', speaking:false };
 function connectWS(){
   const ws = new WebSocket(`ws://${location.host}/ws`);
@@ -52,37 +56,80 @@ function connectWS(){
 }
 connectWS();
 
-// mapa humor -> expressão VRM
-const moodExpr = { animada:'happy', zoeira:'happy', provocada:'angry', surpresa:'surprised', entediada:'sad', neutra:'neutral' };
+// lip sync real: captura o áudio do sistema? Não dá do navegador.
+// Então: quando speaking, boca varia com ruído pseudo-aleatório suave (parece fala real, não seno puro)
+let mouthTarget = 0, mouthCur = 0;
 
-// piscar automático
-let blinkT = 0, nextBlink = 2;
+const moodExpr = { animada:'happy', zoeira:'happy', provocada:'angry', surpresa:'surprised', entediada:'sad', neutra:'neutral' };
+let curExpr = {happy:0,angry:0,sad:0,surprised:0,neutral:0};
+
+let blinkT = 0, nextBlink = 2, blinkPhase = 0;
+let lookT = 0, lookX = 0, lookY = 0, lookTX = 0, lookTY = 0;
 const clock = new THREE.Clock();
+
 function animate(){
   requestAnimationFrame(animate);
-  const dt = clock.getDelta();
+  const dt = Math.min(clock.getDelta(), 0.05);
   const t = clock.elapsedTime;
   if (vrm) {
     const em = vrm.expressionManager;
-    if (em) {
-      // reseta expressões de humor
-      ['happy','angry','sad','surprised','neutral'].forEach(x => em.setValue(x, 0));
-      const expr = moodExpr[state.mood] || 'neutral';
-      em.setValue(expr, 0.8);
-      // piscar
-      blinkT += dt;
-      let blink = 0;
-      if (blinkT > nextBlink) { blink = 1; if (blinkT > nextBlink+0.15){ blinkT=0; nextBlink=2+Math.random()*3; } }
-      em.setValue('blink', blink);
-      // lip sync: boca oscila quando falando
-      const mouth = state.speaking ? (Math.sin(t*18)*0.5+0.5)*0.7 : 0;
-      em.setValue('aa', mouth);
+    const h = vrm.humanoid;
+
+    // expressão: transição suave pro humor atual
+    const target = moodExpr[state.mood] || 'neutral';
+    for (const k in curExpr) {
+      const goal = (k === target) ? 0.75 : 0;
+      curExpr[k] += (goal - curExpr[k]) * dt * 4;
+      if (em) em.setValue(k, curExpr[k]);
     }
-    // respirar: leve balanço
-    if (vrm.humanoid) {
-      const chest = vrm.humanoid.getNormalizedBoneNode('chest');
-      if (chest) chest.rotation.x = Math.sin(t*1.2)*0.02;
+
+    // piscar
+    blinkT += dt;
+    if (blinkT > nextBlink) blinkPhase = 1;
+    if (blinkPhase > 0) {
+      blinkPhase += dt * 12;
+      const b = blinkPhase < 1 ? blinkPhase : (blinkPhase < 2 ? 2 - blinkPhase : 0);
+      if (em) em.setValue('blink', Math.max(0, Math.min(1, b)));
+      if (blinkPhase >= 2) { blinkPhase = 0; blinkT = 0; nextBlink = 2 + Math.random() * 3; }
     }
+
+    // lip sync: boca "conversa" quando speaking
+    if (state.speaking) {
+      if (Math.random() < 0.3) mouthTarget = Math.random() * 0.7;
+    } else mouthTarget = 0;
+    mouthCur += (mouthTarget - mouthCur) * dt * 15;
+    if (em) em.setValue('aa', mouthCur);
+
+    // respiração visível
+    if (h) {
+      const chest = h.getNormalizedBoneNode('chest');
+      const spine = h.getNormalizedBoneNode('spine');
+      const breath = Math.sin(t * 1.6) * 0.035;
+      if (chest) chest.rotation.x = breath;
+      if (spine) spine.rotation.x = breath * 0.5;
+
+      // sway idle: troca de peso lenta
+      const hips = h.getNormalizedBoneNode('hips');
+      if (hips) {
+        hips.position.x = Math.sin(t * 0.5) * 0.01;
+        hips.rotation.y = Math.sin(t * 0.35) * 0.04;
+      }
+
+      // cabeça: micro-movimento + olhar
+      const head = h.getNormalizedBoneNode('head');
+      if (head) {
+        head.rotation.y = Math.sin(t * 0.4) * 0.06 + lookX * 0.15;
+        head.rotation.x = Math.sin(t * 0.6) * 0.03;
+      }
+
+      // olhar que vagueia
+      lookT += dt;
+      if (lookT > 2.5) { lookTX = (Math.random()-0.5)*2; lookTY = (Math.random()-0.5); lookT = 0; }
+      lookX += (lookTX - lookX) * dt * 2;
+      lookY += (lookTY - lookY) * dt * 2;
+      if (vrm.lookAt) vrm.lookAt.applier?.applyYawPitch?.(lookX * 15, lookY * 10);
+    }
+
     vrm.update(dt);
   }
   renderer.render(scene, camera);
@@ -95,4 +142,3 @@ addEventListener('resize', () => {
 </script>
 </body>
 </html>
-
