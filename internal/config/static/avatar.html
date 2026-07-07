@@ -10,6 +10,7 @@
 </head>
 <body>
 <div id="info">carregando...</div>
+<div id="legenda" style="position:fixed;bottom:40px;left:50%;transform:translateX(-50%);max-width:80%;text-align:center;font-family:system-ui,sans-serif;font-size:26px;font-weight:600;color:#fff;text-shadow:0 2px 6px #000,0 0 12px #000;padding:8px 16px;opacity:0;transition:opacity .3s;"></div>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
@@ -92,12 +93,38 @@ async function playAnim(name){
 }
 window.playAnim = playAnim;
 
+// soundboard: efeitos sintéticos (trocar por mp3 depois)
+let audioCtx = null;
+function sfx(type){
+  if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  const now = audioCtx.currentTime;
+  if (type === 'rimshot'){
+    [0,0.12,0.24].forEach((d,i)=>{
+      const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+      o.frequency.value= i<2?200:120; o.type='triangle';
+      g.gain.setValueAtTime(0.3,now+d); g.gain.exponentialRampToValueAtTime(0.01,now+d+0.1);
+      o.connect(g); g.connect(audioCtx.destination); o.start(now+d); o.stop(now+d+0.1);
+    });
+  } else if (type === 'ding'){
+    const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+    o.frequency.value=880; o.type='sine';
+    g.gain.setValueAtTime(0.3,now); g.gain.exponentialRampToValueAtTime(0.01,now+0.4);
+    o.connect(g); g.connect(audioCtx.destination); o.start(now); o.stop(now+0.4);
+  }
+}
+window.sfx = sfx;
+
+
 let state = { mood:'neutra', speaking:false };
 function connectWS(){
   const ws = new WebSocket(`ws://${location.host}/ws`);
   ws.onmessage = e => {
     const s = JSON.parse(e.data);
     if (s.anim && s.anim !== state.anim) playAnim(s.anim);
+    if (s.sfx && s.sfx !== state.sfx) sfx(s.sfx);
+    const leg = document.getElementById('legenda');
+    if (s.speaking && s.said) { leg.textContent = s.said; leg.style.opacity = 1; }
+    else if (!s.speaking) { leg.style.opacity = 0; }
     state = s;
   };
   ws.onclose = () => setTimeout(connectWS, 1000);
