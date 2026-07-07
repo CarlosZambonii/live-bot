@@ -35,6 +35,16 @@
 <h1>🎙️ Painel da Dora</h1>
 <div class="status off" id="status">verificando...</div>
 
+<div class="card" id="liveCard">
+  <h2>Ao vivo</h2>
+  <div style="font-size:13px;color:var(--mut);margin-bottom:6px;">
+    humor: <span id="liveMood" style="color:var(--ac)">-</span>
+    · anim: <span id="liveAnim" style="color:var(--ac)">-</span>
+    · <span id="liveSpeak">🔇</span>
+  </div>
+  <div id="liveSaid" style="font-size:14px;font-style:italic;color:var(--tx);min-height:20px;">—</div>
+</div>
+
 <div class="card">
   <h2>Personas</h2>
   <div id="personaList"></div>
@@ -132,6 +142,20 @@ function renderAnims(){
   });
 }
 renderAnims();
+
+function connectFeed(){
+  const ws = new WebSocket(`ws://${location.host}/ws`);
+  ws.onmessage = e => {
+    const s = JSON.parse(e.data);
+    document.getElementById('liveMood').textContent = s.mood || '-';
+    document.getElementById('liveAnim').textContent = s.anim || '-';
+    document.getElementById('liveSpeak').textContent = s.speaking ? '🔊 falando' : '🔇';
+    if (s.said) document.getElementById('liveSaid').textContent = '"'+s.said+'"';
+  };
+  ws.onclose = () => setTimeout(connectFeed, 1500);
+}
+connectFeed();
+
 
 loadConfig();setInterval(loadConfig,15000);
 </script>

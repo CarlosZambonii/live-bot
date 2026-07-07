@@ -201,6 +201,7 @@ func (o *Orchestrator) speak(text string) {
 	defer o.speaking.Unlock()
 	if o.Mood != nil {
 		o.Mood.SetSpeaking(true)
+		o.Mood.SetLastSaid(text)
 		defer o.Mood.SetSpeaking(false)
 	}
 	if err := o.Voice.Speak(text); err != nil {

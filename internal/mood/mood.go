@@ -12,6 +12,7 @@ type State struct {
 	dancing bool
 	anim string
 	mouth float64
+	lastSaid string
 }
 
 var Valid = map[string]bool{
@@ -90,4 +91,17 @@ func (s *State) Mouth() float64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.mouth
+}
+
+
+func (s *State) SetLastSaid(t string) {
+	s.mu.Lock()
+	s.lastSaid = t
+	s.mu.Unlock()
+}
+
+func (s *State) LastSaid() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.lastSaid
 }

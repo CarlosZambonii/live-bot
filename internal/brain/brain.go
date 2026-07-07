@@ -256,6 +256,26 @@ func (c *Client) VisionStateless(prompt, imagePath string) (string, error) {
 }
 
 // rawChat: chamada simples sem tools, sem histórico.
+// doWithRetry tenta a request até 3x com backoff, pra sobreviver a soluços de rede.
+func (c *Client) doWithRetry(req *http.Request) (*http.Response, error) {
+	var lastErr error
+	for i := 0; i < 3; i++ {
+		resp, err := c.http.Do(req)
+		if err == nil && resp.StatusCode < 500 {
+			return resp, nil
+		}
+		if resp != nil {
+			resp.Body.Close()
+		}
+		lastErr = err
+		time.Sleep(time.Duration(i+1) * 500 * time.Millisecond)
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("falha após retries")
+	}
+	return nil, lastErr
+}
+
 func (c *Client) rawChat(msgs []message) (string, error) {
 	body, _ := json.Marshal(map[string]any{
 		"model":      c.model,
@@ -265,7 +285,7 @@ func (c *Client) rawChat(msgs []message) (string, error) {
 	req, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
-	resp, err := c.http.Do(req)
+	resp, err := c.doWithRetry(req)
 	if err != nil {
 		return "", fmt.Errorf("openai: %w", err)
 	}

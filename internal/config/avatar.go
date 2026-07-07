@@ -24,7 +24,7 @@ func AvatarWS(mux *http.ServeMux, m *mood.State) {
 		ticker := time.NewTicker(100 * time.Millisecond)
 		defer ticker.Stop()
 		for range ticker.C {
-			state := map[string]any{"mood": m.Get(), "speaking": m.IsSpeaking(), "dancing": m.IsDancing(), "anim": m.Anim(), "mouth": m.Mouth()}
+			state := map[string]any{"mood": m.Get(), "speaking": m.IsSpeaking(), "dancing": m.IsDancing(), "anim": m.Anim(), "mouth": m.Mouth(), "said": m.LastSaid()}
 			b, _ := json.Marshal(state)
 			if err := conn.WriteMessage(websocket.TextMessage, b); err != nil {
 				log.Println("[avatar] desconectado")
