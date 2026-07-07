@@ -71,3 +71,15 @@ func ObjectAPI(mux *http.ServeMux, m *mood.State) {
 		w.Write([]byte("ok"))
 	})
 }
+
+// MoodAPI força o humor da Dora: POST /mood?set=animada (pra teste)
+func MoodAPI(mux *http.ServeMux, m *mood.State) {
+	mux.HandleFunc("/mood", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		set := r.URL.Query().Get("set")
+		if set != "" {
+			m.Set(set)
+		}
+		w.Write([]byte("ok"))
+	})
+}

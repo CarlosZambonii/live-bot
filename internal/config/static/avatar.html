@@ -34,7 +34,8 @@ const renderer = new THREE.WebGLRenderer({ alpha:true, antialias:true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(devicePixelRatio);
 document.body.appendChild(renderer.domElement);
-scene.add(new THREE.DirectionalLight(0xffffff, Math.PI));
+const dirLight = new THREE.DirectionalLight(0xffffff, Math.PI);
+scene.add(dirLight);
 scene.add(new THREE.AmbientLight(0xffffff, 0.5));
 
 // --- EMOTES ANIME (ícones sobre a cabeça) ---
@@ -59,6 +60,23 @@ const sceneObjects = {
   raiva:   makeEmote('💢'),
 };
 let forcedObject = null;
+
+// --- PARTÍCULAS (corações, faíscas subindo) ---
+const particles = [];
+function spawnParticle(emoji){
+  const cv = document.createElement('canvas'); cv.width=64; cv.height=64;
+  const ctx = cv.getContext('2d');
+  ctx.font='48px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(emoji, 32, 36);
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map:new THREE.CanvasTexture(cv), transparent:true }));
+  spr.scale.set(0.15,0.15,0.15);
+  const angle = Math.random()*Math.PI*2;
+  spr.position.set(Math.cos(angle)*0.3, 0.8+Math.random()*0.4, Math.sin(angle)*0.2);
+  spr.userData = { life:0, vy:0.3+Math.random()*0.3, vx:(Math.random()-0.5)*0.2 };
+  scene.add(spr);
+  particles.push(spr);
+}
+let particleT = 0;
 
 let vrm = null, mixer = null, currentAction = null;
 const animClips = {}; // nome -> AnimationClip
@@ -116,6 +134,7 @@ async function playAnim(name){
 }
 window.playAnim = playAnim;
 window.showObject = (name) => { forcedObject = (name === 'none') ? null : name; };
+window.setMood = (m) => { state.mood = m; };
 
 // soundboard: efeitos sintéticos (trocar por mp3 depois)
 let audioCtx = null;
@@ -167,6 +186,31 @@ function animate(){
   const dt = Math.min(clock.getDelta(), 0.05);
   const t = clock.elapsedTime;
   if (mixer) mixer.update(dt);
+  // iluminação por humor (transição suave de cor)
+  const moodLight = {
+    animada:   [1.0, 0.95, 0.7],  // quente/vibrante
+    zoeira:    [1.0, 0.8, 0.9],   // rosado
+    provocada: [1.0, 0.7, 0.6],   // avermelhado
+    surpresa:  [0.9, 0.95, 1.0],  // frio/branco
+    entediada: [0.7, 0.75, 0.9],  // azulado/apagado
+    neutra:    [1.0, 1.0, 1.0],
+  };
+  const target = moodLight[state.mood] || moodLight.neutra;
+  dirLight.color.r += (target[0] - dirLight.color.r) * dt * 2;
+  dirLight.color.g += (target[1] - dirLight.color.g) * dt * 2;
+  dirLight.color.b += (target[2] - dirLight.color.b) * dt * 2;
+  // partículas por humor
+  const moodParticle = { zoeira:'❤️', animada:'✨', provocada:'💢', surpresa:'⭐' };
+  const pEmoji = moodParticle[state.mood];
+  particleT += dt;
+  if (pEmoji && particleT > 0.5) { spawnParticle(pEmoji); particleT = 0; }
+  for (let i = particles.length-1; i >= 0; i--) {
+    const p = particles[i]; p.userData.life += dt;
+    p.position.y += p.userData.vy * dt;
+    p.position.x += p.userData.vx * dt;
+    p.material.opacity = Math.max(0, 1 - p.userData.life/2);
+    if (p.userData.life > 2) { scene.remove(p); particles.splice(i,1); }
+  }
   // emotes: forçado (teste) ou por humor
   for (const k in sceneObjects) sceneObjects[k].visible = false;
   const moodEmote = { entediada:'zzz', animada:'nota', zoeira:'coracao', provocada:'raiva', surpresa:'surpresa' };
