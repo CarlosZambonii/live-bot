@@ -30,10 +30,17 @@ func (v *VADClient) HasSpeech(wavPath string) bool {
 	}
 	defer resp.Body.Close()
 	var out struct {
-		Speech bool `json:"speech"`
+		Speech     bool    `json:"speech"`
+		Owner      bool    `json:"owner"`
+		Similarity float64 `json:"similarity"`
+		Pass       bool    `json:"pass"`
 	}
 	if json.NewDecoder(resp.Body).Decode(&out) != nil {
 		return true
 	}
-	return out.Speech
+	if out.Speech && !out.Owner {
+		// é fala, mas não é o dono (pessoa do lado, TV, eco)
+		return false
+	}
+	return out.Pass
 }
