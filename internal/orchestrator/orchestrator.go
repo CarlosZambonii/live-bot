@@ -192,7 +192,15 @@ func (o *Orchestrator) Run() {
 		}
 
 		var reply string
-		if o.Cfg.Snapshot().Vision {
+		// comandos de ação (volume/música) vão pro Think com tools, sem visão
+		if isActionCommand(text) {
+			if r, err := o.Brain.Think(text); err == nil {
+				reply = r
+			} else {
+				log.Printf("[brain] %v", err)
+				continue
+			}
+		} else if o.Cfg.Snapshot().Vision {
 			if shot, err := capture.Screenshot(); err == nil {
 				tBrain := time.Now()
 				reply, err = o.Brain.ThinkWithVision(text, shot)
@@ -673,4 +681,16 @@ func (o *Orchestrator) HandleReward(tipo, user string) {
 		fala = "Valeu pela recompensa, " + user + "!"
 	}
 	o.speakPriority(fala)
+}
+
+// isActionCommand detecta pedidos de ação (volume, música) que precisam das tools.
+func isActionCommand(text string) bool {
+	t := strings.ToLower(text)
+	kw := []string{"volume", "som", "música", "musica", "pausa", "pause", "toca", "tocar", "próxima", "proxima", "pula", "abaixa", "aumenta", "diminui", "mais alto", "mais baixo"}
+	for _, k := range kw {
+		if strings.Contains(t, k) {
+			return true
+		}
+	}
+	return false
 }
