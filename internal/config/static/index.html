@@ -143,15 +143,12 @@
 
           <div class="skins-row">
             <div class="lbl">Vestes</div>
-            <div class="skin-grid" id="skinGrid">
-              <div class="skin-thumb on" data-skin="avatar">avatar</div>
-              <div class="skin-thumb" style="cursor:default;opacity:.5">＋</div>
-            </div>
+            <div class="skin-grid" id="skinGrid"></div>
           </div>
         </section>
 
         <section class="frame figure">
-          <div class="portrait" id="portrait">⁘ a figura invocada ⁘</div>
+          <div class="portrait" id="portrait"><iframe src="/avatar.html" title="Dora"></iframe></div>
           <div class="name-plate">
             <div class="title">A Invocada</div>
             <div class="char">Dora</div>
@@ -189,8 +186,8 @@
         <section class="frame">
           <h2>Presságio</h2>
           <div class="preview-stage" id="previewStage">
-            ⁘ toca aqui o gesto escolhido ⁘
-            <div class="cap">clique um gesto para vê-lo</div>
+            <iframe src="/avatar.html" title="Presságio" style="width:100%;height:100%;border:none"></iframe>
+            <div class="cap" id="pressagioCap">clique um gesto para vê-lo</div>
           </div>
         </section>
       </div>
@@ -353,5 +350,77 @@
       fetch('/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vision:e.target.checked})}).then(()=>toast('pacto selado'));
     };
   </script>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
+  "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3/lib/three-vrm.module.js"
+}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
+
+const loader = new GLTFLoader();
+loader.register(p => new VRMLoaderPlugin(p));
+
+// renderiza UM vrm e devolve dataURL do retrato
+async function renderThumb(name){
+  return new Promise((res)=>{
+    loader.load('/skins/'+name+'.vrm', (gltf)=>{
+      const vrm = gltf.userData.vrm;
+      VRMUtils.rotateVRM0(vrm);
+      const scene = new THREE.Scene();
+      scene.add(vrm.scene);
+      scene.add(new THREE.DirectionalLight(0xffffff, Math.PI));
+      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+      vrm.update(0);
+      // acha a altura da cabeça real do modelo pra enquadrar certo
+      let headY = 1.4;
+      try {
+        const head = vrm.humanoid.getNormalizedBoneNode('head');
+        if (head) { const p = new THREE.Vector3(); head.getWorldPosition(p); headY = p.y; }
+      } catch(e){}
+      const cam = new THREE.PerspectiveCamera(20, 3/4, 0.1, 20);
+      // mira um pouco acima da cabeça, câmera na altura do rosto, afastada proporcional
+      cam.position.set(0, headY - 0.02, 1.15); cam.lookAt(0, headY - 0.08, 0);
+      const rend = new THREE.WebGLRenderer({antialias:true, alpha:true, preserveDrawingBuffer:true});
+      rend.setSize(150, 200);
+      vrm.update(0);
+      rend.render(scene, cam);
+      const url = rend.domElement.toDataURL('image/png');
+      // limpa
+      rend.dispose(); VRMUtils.deepDispose(vrm.scene);
+      res(url);
+    }, undefined, ()=>res(null));
+  });
+}
+
+async function buildGallery(){
+  const names = await fetch('/skins-list').then(r=>r.json()).catch(()=>[]);
+  const grid = document.getElementById('skinGrid');
+  grid.innerHTML = '';
+  for(const name of names){
+    const cell = document.createElement('div');
+    cell.className = 'skin-thumb';
+    cell.dataset.skin = name;
+    cell.textContent = name; // placeholder enquanto renderiza
+    cell.onclick = ()=>{
+      fetch('/skin?name='+name,{method:'POST'});
+      document.querySelectorAll('.skin-thumb').forEach(t=>t.classList.remove('on'));
+      cell.classList.add('on');
+      if(window.toast) toast('veste: '+name);
+    };
+    grid.appendChild(cell);
+    // renderiza a miniatura (uma de cada vez pra não travar)
+    renderThumb(name).then(url=>{
+      if(url){ cell.textContent=''; const img=new Image(); img.src=url; cell.appendChild(img); }
+    });
+  }
+}
+buildGallery();
+</script>
 </body>
 </html>

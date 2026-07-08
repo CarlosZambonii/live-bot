@@ -2,6 +2,8 @@ package config
 
 import (
 	"embed"
+	"strings"
+	"os"
 	"fmt"
 	"encoding/json"
 	"io/fs"
@@ -120,6 +122,21 @@ func (c *Config) Serve(addr string, store *memory.Store, m *mood.State, onReward
 		}
 		fmt.Fprintf(w, `{"minutes":%d,"level":"%s"}`, min, level)
 	})
+	// skins servidas do disco (arquivos grandes, fora do go:embed)
+	mux.HandleFunc("/skins-list", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		entries, _ := os.ReadDir("skins_disk")
+		names := []string{}
+		for _, e := range entries {
+			if strings.HasSuffix(e.Name(), ".vrm") {
+				names = append(names, strings.TrimSuffix(e.Name(), ".vrm"))
+			}
+		}
+		b, _ := json.Marshal(names)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(b)
+	})
+	mux.Handle("/skins/", http.StripPrefix("/skins/", http.FileServer(http.Dir("skins_disk"))))
 	sub, _ := fs.Sub(staticFS, "static")
 	mux.Handle("/", http.FileServer(http.FS(sub)))
 
