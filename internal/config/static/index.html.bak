@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Painel da Dora</title>
+<style>
+  :root{--bg:#0f1117;--card:#1a1d27;--tx:#e6e6ef;--mut:#8b8fa3;--ac:#7c5cff;--ok:#3ddc84;}
+  *{box-sizing:border-box;margin:0;padding:0;font-family:system-ui,sans-serif;}
+  body{background:var(--bg);color:var(--tx);padding:24px;max-width:720px;margin:0 auto;}
+  h1{font-size:20px;margin-bottom:4px;}
+  .status{font-size:13px;color:var(--mut);margin-bottom:20px;}
+  .status.on::before{content:"● ";color:var(--ok);}
+  .status.off::before{content:"● ";color:#e05252;}
+  .card{background:var(--card);border-radius:12px;padding:18px;margin-bottom:16px;}
+  .card h2{font-size:14px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;}
+  .persona{display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;margin-bottom:8px;background:#12141c;}
+  .persona.active{outline:2px solid var(--ac);}
+  .persona .nm{flex:1;font-size:15px;}
+  .persona .tag{font-size:11px;color:var(--ok);}
+  button{background:var(--ac);color:#fff;border:0;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;}
+  button.ghost{background:#2a2e3d;}
+  button.danger{background:#3a2226;color:#e05252;}
+  button:hover{filter:brightness(1.15);}
+  input,textarea{width:100%;background:#12141c;color:var(--tx);border:1px solid #2a2e3d;border-radius:8px;padding:9px;font-size:14px;margin-bottom:8px;}
+  textarea{min-height:110px;resize:vertical;}
+  .row{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;}
+  .row label{font-size:14px;flex:1;}
+  .row .val{font-size:13px;color:var(--ac);min-width:52px;text-align:right;}
+  input[type=range]{flex:2;accent-color:var(--ac);}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ok);color:#06220f;padding:10px 20px;border-radius:8px;opacity:0;transition:.3s;}
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+<h1>🎙️ Painel da Dora</h1>
+<div class="status off" id="status">verificando...</div>
+
+<div class="card" id="liveCard">
+  <h2>Ao vivo</h2>
+  <div style="font-size:13px;color:var(--mut);margin-bottom:6px;">
+    humor: <span id="liveMood" style="color:var(--ac)">-</span>
+    · anim: <span id="liveAnim" style="color:var(--ac)">-</span>
+    · energia: <span id="liveEnergy" style="color:var(--ac)">-</span>
+    · <span id="liveSpeak">🔇</span>
+  </div>
+  <div id="liveSaid" style="font-size:14px;font-style:italic;color:var(--tx);min-height:20px;">—</div>
+</div>
+
+<div class="card">
+  <h2>Personas</h2>
+  <div id="personaList"></div>
+</div>
+
+<div class="card">
+  <h2 id="formTitle">Nova persona</h2>
+  <input id="pName" placeholder="Nome (ex: Vovó Gamer)">
+  <textarea id="pPrompt" placeholder="Descreva a personalidade..."></textarea>
+  <div style="display:flex;gap:8px;">
+    <button onclick="savePersona()">Salvar</button>
+    <button class="ghost" onclick="clearForm()">Limpar</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Animações</h2>
+  <div id="animBtns" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+</div>
+
+<div class="card">
+  <h2>Objetos de cena</h2>
+  <div id="objBtns" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+</div>
+
+<div class="card">
+  <h2>Skins</h2>
+  <div id="skinBtns" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+</div>
+
+<div class="card">
+  <h2>Comportamento</h2>
+  <div class="row"><label>Cooldown menção</label><input type="range" id="mention_cooldown_s" min="10" max="180" step="5"><span class="val" id="v_mention"></span></div>
+  <div class="row"><label>Cooldown espontânea</label><input type="range" id="spont_cooldown_s" min="30" max="600" step="10"><span class="val" id="v_spont"></span></div>
+  <div class="row"><label>Chance espontânea</label><input type="range" id="spont_chance" min="0" max="1" step="0.05"><span class="val" id="v_chance"></span></div>
+  <div class="row"><label>Cooldown autônoma</label><input type="range" id="auto_cooldown_s" min="30" max="600" step="10"><span class="val" id="v_auto"></span></div>
+  <div class="row"><label>Sensibilidade mic</label><input type="range" id="vad_threshold" min="100" max="2000" step="50"><span class="val" id="v_vad"></span></div>
+  <div class="row"><label>Visão</label><input type="checkbox" id="vision"></div>
+  <button style="width:100%;padding:11px;" onclick="saveConfig()">Aplicar comportamento</button>
+</div>
+
+<div class="toast" id="toast">Aplicado!</div>
+
+<script>
+let editId=null;
+const fields=['mention_cooldown_s','spont_cooldown_s','spont_chance','auto_cooldown_s','vad_threshold'];
+const fmt={mention_cooldown_s:v=>v+'s',spont_cooldown_s:v=>v+'s',spont_chance:v=>Math.round(v*100)+'%',auto_cooldown_s:v=>v+'s',vad_threshold:v=>v};
+const valId={mention_cooldown_s:'v_mention',spont_cooldown_s:'v_spont',spont_chance:'v_chance',auto_cooldown_s:'v_auto',vad_threshold:'v_vad'};
+fields.forEach(f=>document.getElementById(f).addEventListener('input',e=>document.getElementById(valId[f]).textContent=fmt[f](e.target.value)));
+
+function toast(){const t=document.getElementById('toast');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800);}
+function clearForm(){editId=null;document.getElementById('pName').value='';document.getElementById('pPrompt').value='';document.getElementById('formTitle').textContent='Nova persona';}
+
+async function loadPersonas(){
+  const r=await fetch('/personas');const list=await r.json()||[];
+  const el=document.getElementById('personaList');el.innerHTML='';
+  list.forEach(p=>{
+    const d=document.createElement('div');d.className='persona'+(p.active?' active':'');
+    d.innerHTML=`<span class="nm">${p.name}</span>${p.active?'<span class="tag">ATIVA</span>':''}
+      <button onclick="activate(${p.id})">Ativar</button>
+      <button class="ghost" onclick="edit(${p.id},${JSON.stringify(p.name).replace(/"/g,'&quot;')},${JSON.stringify(p.prompt).replace(/"/g,'&quot;')})">Editar</button>
+      <button class="danger" onclick="del(${p.id})">×</button>`;
+    el.appendChild(d);
+  });
+}
+async function activate(id){await fetch('/personas/'+id+'/activate',{method:'POST'});toast();loadPersonas();}
+async function del(id){if(!confirm('Apagar?'))return;await fetch('/personas/'+id,{method:'DELETE'});loadPersonas();}
+function edit(id,name,prompt){editId=id;document.getElementById('pName').value=name;document.getElementById('pPrompt').value=prompt;document.getElementById('formTitle').textContent='Editar: '+name;window.scrollTo(0,300);}
+async function savePersona(){
+  const name=document.getElementById('pName').value,prompt=document.getElementById('pPrompt').value;
+  if(!name||!prompt)return alert('Preencha nome e prompt');
+  if(editId){await fetch('/personas/'+editId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,prompt})});}
+  else{await fetch('/personas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,prompt})});}
+  clearForm();toast();loadPersonas();
+}
+
+async function loadConfig(){
+  try{
+    const c=await(await fetch('/config')).json();
+    document.getElementById('status').className='status on';document.getElementById('status').textContent='bot online';
+    fields.forEach(f=>{document.getElementById(f).value=c[f];document.getElementById(valId[f]).textContent=fmt[f](c[f]);});
+    document.getElementById('vision').checked=c.vision;
+    loadPersonas();
+  }catch{
+    document.getElementById('status').className='status off';document.getElementById('status').textContent='bot offline';
+  }
+}
+async function saveConfig(){
+  const body={vision:document.getElementById('vision').checked};
+  fields.forEach(f=>body[f]=parseFloat(document.getElementById(f).value));
+  await fetch('/config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  toast();
+}
+
+const ANIMS = ['Clapping','Jump','Goodbye','LookAround','Thinking','Surprised','Angry','Sad','Sleepy','Blush','Relax'];
+function renderAnims(){
+  const el = document.getElementById('animBtns');
+  if (!el) return;
+  el.innerHTML = '';
+  ANIMS.forEach(a => {
+    const b = document.createElement('button');
+    b.className = 'ghost'; b.textContent = a;
+    b.onclick = () => { fetch('/anim?name='+a, {method:'POST'}); toast(); };
+    el.appendChild(b);
+  });
+}
+renderAnims();
+
+const OBJECTS = ['suor','coracao','zzz','surpresa','nota','raiva','none'];
+function renderObjects(){
+  const el = document.getElementById('objBtns');
+  if (!el) return;
+  el.innerHTML = '';
+  OBJECTS.forEach(o => {
+    const b = document.createElement('button');
+    b.className = 'ghost'; b.textContent = o === 'none' ? 'limpar' : o;
+    b.onclick = () => { fetch('/object?name='+o, {method:'POST'}); toast(); };
+    el.appendChild(b);
+  });
+}
+renderObjects();
+
+const SKINS = ['avatar'];
+function renderSkins(){
+  const el = document.getElementById('skinBtns');
+  if (!el) return;
+  el.innerHTML = '';
+  SKINS.forEach(s => {
+    const b = document.createElement('button');
+    b.className = 'ghost'; b.textContent = s;
+    b.onclick = () => { fetch('/skin?name='+s, {method:'POST'}); toast(); };
+    el.appendChild(b);
+  });
+}
+renderSkins();
+
+
+
+function connectFeed(){
+  const ws = new WebSocket(`ws://${location.host}/ws`);
+  ws.onmessage = e => {
+    const s = JSON.parse(e.data);
+    document.getElementById('liveMood').textContent = s.mood || '-';
+    document.getElementById('liveAnim').textContent = s.anim || '-';
+    if (s.phase) document.getElementById('liveEnergy').textContent = s.phase + ' (' + Math.round((s.energy||0)*100) + '%)';
+    document.getElementById('liveSpeak').textContent = s.speaking ? '🔊 falando' : '🔇';
+    if (s.said) document.getElementById('liveSaid').textContent = '"'+s.said+'"';
+  };
+  ws.onclose = () => setTimeout(connectFeed, 1500);
+}
+connectFeed();
+
+
+loadConfig();setInterval(loadConfig,15000);
+</script>
+</body>
+</html>

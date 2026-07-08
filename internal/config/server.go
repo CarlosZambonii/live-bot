@@ -2,6 +2,7 @@ package config
 
 import (
 	"embed"
+	"fmt"
 	"encoding/json"
 	"io/fs"
 	"log"
@@ -102,6 +103,23 @@ func (c *Config) Serve(addr string, store *memory.Store, m *mood.State, onReward
 		EnergyAPI(mux, m)
 	}
 
+	mux.HandleFunc("/relation", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		min := 0
+		if store != nil {
+			min = store.RelMinutes()
+		}
+		level := "estranhos"
+		switch {
+		case min >= 900:
+			level = "íntima"
+		case min >= 300:
+			level = "próximos"
+		case min >= 60:
+			level = "conhecidos"
+		}
+		fmt.Fprintf(w, `{"minutes":%d,"level":"%s"}`, min, level)
+	})
 	sub, _ := fs.Sub(staticFS, "static")
 	mux.Handle("/", http.FileServer(http.FS(sub)))
 

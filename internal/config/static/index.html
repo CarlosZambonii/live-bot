@@ -2,204 +2,356 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<title>Painel da Dora</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dora ⁘ Tomo de Invocação</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;800&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
 <style>
-  :root{--bg:#0f1117;--card:#1a1d27;--tx:#e6e6ef;--mut:#8b8fa3;--ac:#7c5cff;--ok:#3ddc84;}
-  *{box-sizing:border-box;margin:0;padding:0;font-family:system-ui,sans-serif;}
-  body{background:var(--bg);color:var(--tx);padding:24px;max-width:720px;margin:0 auto;}
-  h1{font-size:20px;margin-bottom:4px;}
-  .status{font-size:13px;color:var(--mut);margin-bottom:20px;}
-  .status.on::before{content:"● ";color:var(--ok);}
-  .status.off::before{content:"● ";color:#e05252;}
-  .card{background:var(--card);border-radius:12px;padding:18px;margin-bottom:16px;}
-  .card h2{font-size:14px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;}
-  .persona{display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;margin-bottom:8px;background:#12141c;}
-  .persona.active{outline:2px solid var(--ac);}
-  .persona .nm{flex:1;font-size:15px;}
-  .persona .tag{font-size:11px;color:var(--ok);}
-  button{background:var(--ac);color:#fff;border:0;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;}
-  button.ghost{background:#2a2e3d;}
-  button.danger{background:#3a2226;color:#e05252;}
-  button:hover{filter:brightness(1.15);}
-  input,textarea{width:100%;background:#12141c;color:var(--tx);border:1px solid #2a2e3d;border-radius:8px;padding:9px;font-size:14px;margin-bottom:8px;}
-  textarea{min-height:110px;resize:vertical;}
-  .row{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;}
-  .row label{font-size:14px;flex:1;}
-  .row .val{font-size:13px;color:var(--ac);min-width:52px;text-align:right;}
-  input[type=range]{flex:2;accent-color:var(--ac);}
-  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ok);color:#06220f;padding:10px 20px;border-radius:8px;opacity:0;transition:.3s;}
-  .toast.show{opacity:1;}
+  :root{
+    --void:#0a0c0a; --void2:#12140f; --stone:#191b15; --stone2:#21241b;
+    --line:#3a3826; --gold:#d4af6a; --gold-lt:#f0d9a0; --gold-dim:#8a7d54;
+    --blood:#9c3d2e; --parch:#e8dcc0; --mist:#8a8570;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--void);color:var(--parch);font-family:'EB Garamond',Georgia,serif;min-height:100vh;position:relative;overflow-x:hidden}
+  body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:1;
+    background:radial-gradient(120% 80% at 50% -20%,rgba(212,175,106,.10),transparent 60%),
+      radial-gradient(150% 100% at 50% 120%,rgba(0,0,0,.7),transparent 50%),
+      radial-gradient(100% 100% at 50% 50%,transparent 55%,rgba(0,0,0,.55))}
+  .wrap{position:relative;z-index:2;max-width:1200px;margin:0 auto;padding:0 20px}
+
+  header{text-align:center;padding:34px 0 22px}
+  header .kicker{font-family:'Cinzel';font-size:11px;letter-spacing:6px;color:var(--gold-dim);text-transform:uppercase}
+  header h1{font-family:'Cinzel';font-weight:800;font-size:32px;letter-spacing:3px;color:var(--gold-lt);margin:6px 0;text-shadow:0 0 26px rgba(212,175,106,.3)}
+  header .rule{width:260px;height:1px;margin:8px auto 0;background:linear-gradient(90deg,transparent,var(--gold),transparent)}
+  .status-orb{display:inline-flex;align-items:center;gap:8px;margin-top:14px;font-family:'Cinzel';font-size:11px;letter-spacing:2px;color:var(--gold-dim);text-transform:uppercase}
+  .orb{width:8px;height:8px;border-radius:50%;background:var(--mist)}
+  .orb.alive{background:var(--gold);box-shadow:0 0 10px var(--gold);animation:pulse 2s infinite}
+  @keyframes pulse{50%{opacity:.4}}
+
+  .tabs{display:flex;justify-content:center;gap:4px;flex-wrap:wrap;margin-bottom:28px}
+  .tab{font-family:'Cinzel';font-size:12px;letter-spacing:2px;text-transform:uppercase;padding:11px 18px;color:var(--gold-dim);cursor:pointer;background:transparent;border:none;transition:.2s;position:relative}
+  .tab:hover{color:var(--gold-lt)}
+  .tab.on{color:var(--gold-lt)}
+  .tab.on::after{content:'';position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:30px;height:2px;background:var(--gold);box-shadow:0 0 10px var(--gold)}
+
+  .frame{background:linear-gradient(180deg,var(--stone2),var(--stone));border:1px solid var(--line);position:relative;padding:22px;box-shadow:inset 0 0 40px rgba(0,0,0,.5)}
+  .frame::before,.frame::after{content:'';position:absolute;width:14px;height:14px;border:1px solid var(--gold-dim);opacity:.7}
+  .frame::before{top:5px;left:5px;border-right:none;border-bottom:none}
+  .frame::after{bottom:5px;right:5px;border-left:none;border-top:none}
+  .frame > h2{font-family:'Cinzel';font-size:13px;letter-spacing:3px;text-transform:uppercase;color:var(--gold);text-align:center;margin-bottom:18px;font-weight:600;padding-bottom:12px;border-bottom:1px solid var(--line)}
+
+  .page{display:none}.page.on{display:block;animation:fade .3s}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1}}
+
+  .forge{display:grid;grid-template-columns:1fr 1.1fr 1fr;gap:20px;align-items:start}
+  .attr{display:flex;align-items:center;justify-content:space-between;padding:11px 4px;border-bottom:1px solid rgba(58,56,38,.4)}
+  .attr:last-child{border:none}
+  .attr .name{font-size:17px;display:flex;align-items:center;gap:10px}
+  .attr .glyph{color:var(--gold);font-size:14px;width:18px;text-align:center}
+  .attr .value{font-family:'Cinzel';font-size:18px;font-weight:600;color:var(--gold-lt)}
+  .vitbar{height:6px;background:#000;border:1px solid var(--line);margin-top:5px}
+  .vitfill{height:100%;background:linear-gradient(90deg,var(--blood),var(--gold));transition:width .5s}
+  .figure{padding:0;background:radial-gradient(circle at 50% 40%,rgba(212,175,106,.06),transparent 65%),linear-gradient(180deg,var(--stone),var(--void2));min-height:480px;display:flex;flex-direction:column}
+  .portrait{flex:1;display:grid;place-items:center;color:var(--mist);font-style:italic;text-align:center;border-bottom:1px solid var(--line);overflow:hidden}
+  .portrait iframe{width:100%;height:100%;border:none}
+  .name-plate{padding:16px;text-align:center}
+  .name-plate .title{font-family:'Cinzel';font-size:11px;letter-spacing:4px;color:var(--gold-dim);text-transform:uppercase}
+  .name-plate .char{font-family:'Cinzel';font-size:22px;color:var(--gold-lt);letter-spacing:2px;margin-top:4px}
+  .name-plate .said{font-style:italic;font-size:14px;margin-top:10px;opacity:.85;min-height:20px}
+  .invoke{width:100%;text-align:left;font-family:'EB Garamond';font-size:16px;color:var(--parch);padding:12px 16px;background:linear-gradient(90deg,rgba(212,175,106,.06),transparent);border:1px solid var(--line);border-left:2px solid var(--gold-dim);cursor:pointer;margin-bottom:8px;transition:.18s;display:flex;justify-content:space-between;align-items:center}
+  .invoke:hover{border-left-color:var(--gold);color:var(--gold-lt);background:linear-gradient(90deg,rgba(212,175,106,.14),transparent);padding-left:22px}
+  .invoke .rune{color:var(--gold-dim)}.invoke:hover .rune{color:var(--gold)}
+
+  .skins-row{margin-top:16px}
+  .skins-row .lbl{font-family:'Cinzel';font-size:10px;letter-spacing:2px;color:var(--gold-dim);text-transform:uppercase;text-align:center;margin-bottom:10px}
+  .skin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .skin-thumb{aspect-ratio:3/4;background:linear-gradient(160deg,#1a1c14,#0d0f0a);border:1px solid var(--line);cursor:pointer;display:grid;place-items:center;color:var(--mist);font-size:10px;text-align:center;transition:.18s;position:relative;overflow:hidden}
+  .skin-thumb:hover{border-color:var(--gold)}
+  .skin-thumb.on{border-color:var(--gold);box-shadow:0 0 14px rgba(212,175,106,.4)}
+  .skin-thumb.on::after{content:'✦';position:absolute;top:4px;right:5px;color:var(--gold);font-size:11px}
+  .skin-thumb canvas,.skin-thumb img{width:100%;height:100%;object-fit:cover}
+
+  .soul{display:flex;align-items:center;justify-content:space-between;padding:16px;background:linear-gradient(90deg,var(--stone2),var(--stone));border:1px solid var(--line);margin-bottom:12px;transition:.18s}
+  .soul.on{border-color:var(--gold);box-shadow:0 0 16px rgba(212,175,106,.25)}
+  .soul .info b{font-family:'Cinzel';font-size:17px;color:var(--gold-lt);display:block;letter-spacing:1px}
+  .soul .info span{font-size:14px;color:var(--mist);font-style:italic}
+  .soul .act{display:flex;gap:8px;align-items:center}
+  .seal{font-family:'Cinzel';font-size:10px;letter-spacing:2px;color:var(--gold);text-transform:uppercase}
+  .rune-btn{font-family:'Cinzel';font-size:11px;letter-spacing:2px;text-transform:uppercase;padding:8px 14px;background:transparent;border:1px solid var(--gold-dim);color:var(--gold);cursor:pointer;transition:.18s}
+  .rune-btn:hover{border-color:var(--gold);background:rgba(212,175,106,.1)}
+
+  .gestos-layout{display:grid;grid-template-columns:1fr 1.2fr;gap:20px;align-items:start}
+  .gesto-list{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .gesto{font-family:'EB Garamond';font-size:15px;color:var(--parch);padding:11px;background:rgba(212,175,106,.05);border:1px solid var(--line);cursor:pointer;text-align:center;transition:.18s}
+  .gesto:hover{border-color:var(--gold);color:var(--gold-lt);background:rgba(212,175,106,.12)}
+  .preview-stage{aspect-ratio:1/1;background:radial-gradient(circle at 50% 45%,rgba(212,175,106,.08),transparent 60%),linear-gradient(180deg,var(--stone),var(--void2));border:1px solid var(--line);display:grid;place-items:center;color:var(--mist);font-style:italic;text-align:center;position:relative;overflow:hidden}
+  .preview-stage .cap{position:absolute;bottom:12px;left:0;right:0;text-align:center;font-family:'Cinzel';font-size:11px;letter-spacing:2px;color:var(--gold-dim)}
+
+  .oferenda-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+  .oferenda{padding:20px;background:linear-gradient(180deg,var(--stone2),var(--stone));border:1px solid var(--line);text-align:center;cursor:pointer;transition:.18s}
+  .oferenda:hover{border-color:var(--gold);box-shadow:0 0 16px rgba(212,175,106,.2)}
+  .oferenda .sig{font-size:26px;color:var(--gold);margin-bottom:8px}
+  .oferenda b{font-family:'Cinzel';font-size:13px;letter-spacing:1px;color:var(--gold-lt);display:block}
+  .oferenda span{font-size:13px;color:var(--mist);font-style:italic}
+
+  .row{display:flex;align-items:center;gap:16px;padding:14px 0;border-bottom:1px solid rgba(58,56,38,.3)}
+  .row:last-child{border:none}
+  .row label{width:200px;font-size:16px}
+  .row input[type=range]{flex:1;accent-color:var(--gold);background:transparent}
+  .row .val{width:60px;text-align:right;font-family:'Cinzel';font-size:15px;color:var(--gold-lt)}
+
+  footer{text-align:center;padding:30px 0;color:var(--gold-dim);font-style:italic;font-size:13px}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--stone2);border:1px solid var(--gold);color:var(--gold-lt);font-family:'Cinzel';font-size:12px;letter-spacing:2px;padding:12px 22px;z-index:20;transition:.3s;text-transform:uppercase}
+  .toast.show{transform:translateX(-50%) translateY(0)}
+  @media(max-width:880px){.forge,.gestos-layout{grid-template-columns:1fr}.figure{min-height:340px;order:-1}header h1{font-size:24px}.row label{width:130px}}
 </style>
 </head>
 <body>
-<h1>🎙️ Painel da Dora</h1>
-<div class="status off" id="status">verificando...</div>
+  <div class="wrap">
+    <header>
+      <div class="kicker">Tomo de Invocação</div>
+      <h1>DORA</h1>
+      <div class="rule"></div>
+      <div class="status-orb"><span class="orb" id="orb"></span><span id="orbTxt">invocando...</span></div>
+    </header>
 
-<div class="card" id="liveCard">
-  <h2>Ao vivo</h2>
-  <div style="font-size:13px;color:var(--mut);margin-bottom:6px;">
-    humor: <span id="liveMood" style="color:var(--ac)">-</span>
-    · anim: <span id="liveAnim" style="color:var(--ac)">-</span>
-    · energia: <span id="liveEnergy" style="color:var(--ac)">-</span>
-    · <span id="liveSpeak">🔇</span>
+    <nav class="tabs">
+      <button class="tab on" data-t="graca">A Graça</button>
+      <button class="tab" data-t="almas">Almas</button>
+      <button class="tab" data-t="gestos">Gestos &amp; Auras</button>
+      <button class="tab" data-t="oferendas">Oferendas</button>
+      <button class="tab" data-t="pacto">O Pacto</button>
+    </nav>
+
+    <!-- A GRAÇA -->
+    <div class="page on" id="graca">
+      <div class="forge">
+        <section class="frame">
+          <h2>Atributos</h2>
+          <div class="attr"><span class="name"><span class="glyph">✦</span> Espírito</span><span class="value" id="atSpirit" style="font-size:15px">—</span></div>
+          <div class="attr" style="display:block">
+            <div style="display:flex;justify-content:space-between"><span class="name"><span class="glyph">❦</span> Vigor</span><span class="value" id="atVigor">—</span></div>
+            <div class="vitbar"><div class="vitfill" id="vigorBar" style="width:0%"></div></div>
+          </div>
+          <div class="attr" style="display:block">
+            <div style="display:flex;justify-content:space-between"><span class="name"><span class="glyph">⚭</span> Vínculo</span><span class="value" id="atBond">—</span></div>
+            <div class="vitbar"><div class="vitfill" id="bondBar" style="width:0%;background:linear-gradient(90deg,#4a3d6a,var(--gold))"></div></div>
+          </div>
+          <div class="attr"><span class="name"><span class="glyph">◈</span> Convívio</span><span class="value" id="atTime" style="font-size:15px">—</span></div>
+
+          <div class="skins-row">
+            <div class="lbl">Vestes</div>
+            <div class="skin-grid" id="skinGrid">
+              <div class="skin-thumb on" data-skin="avatar">avatar</div>
+              <div class="skin-thumb" style="cursor:default;opacity:.5">＋</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="frame figure">
+          <div class="portrait" id="portrait">⁘ a figura invocada ⁘</div>
+          <div class="name-plate">
+            <div class="title">A Invocada</div>
+            <div class="char">Dora</div>
+            <div class="said" id="said">—</div>
+          </div>
+        </section>
+
+        <section class="frame">
+          <h2>Dádivas</h2>
+          <button class="invoke" data-anim="Goodbye">Acenar <span class="rune">☙</span></button>
+          <button class="invoke" data-anim="Clapping">Comemorar <span class="rune">✦</span></button>
+          <button class="invoke" data-anim="Thinking">Pensar <span class="rune">◈</span></button>
+          <button class="invoke" data-mood="provocada">Ficar brava <span class="rune">⚔</span></button>
+          <button class="invoke" data-mood="entediada">Dormir <span class="rune">☾</span></button>
+        </section>
+      </div>
+    </div>
+
+    <!-- ALMAS -->
+    <div class="page" id="almas">
+      <section class="frame">
+        <h2>Almas — as faces que ela veste</h2>
+        <div id="soulList"><div style="text-align:center;color:var(--mist);font-style:italic">carregando almas...</div></div>
+        <button class="rune-btn" id="newSoul" style="margin-top:10px;width:100%;padding:14px">⁘ forjar nova alma ⁘</button>
+      </section>
+    </div>
+
+    <!-- GESTOS -->
+    <div class="page" id="gestos">
+      <div class="gestos-layout">
+        <section class="frame">
+          <h2>Gestos</h2>
+          <div class="gesto-list" id="gestoList"></div>
+        </section>
+        <section class="frame">
+          <h2>Presságio</h2>
+          <div class="preview-stage" id="previewStage">
+            ⁘ toca aqui o gesto escolhido ⁘
+            <div class="cap">clique um gesto para vê-lo</div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- OFERENDAS -->
+    <div class="page" id="oferendas">
+      <section class="frame">
+        <h2>Oferendas — o que os fiéis ofertam</h2>
+        <div class="oferenda-grid">
+          <div class="oferenda" data-reward="agua"><div class="sig">☙</div><b>Água</b><span>restaura o vigor</span></div>
+          <div class="oferenda" data-reward="cutucar"><div class="sig">⚔</div><b>Provocação</b><span>desperta a ira</span></div>
+          <div class="oferenda" data-reward="dancar"><div class="sig">❧</div><b>Dança</b><span>invoca alegria</span></div>
+          <div class="oferenda" data-reward="dormir"><div class="sig">☾</div><b>Descanso</b><span>traz o torpor</span></div>
+          <div class="oferenda" data-reward="elogiar"><div class="sig">✦</div><b>Louvor</b><span>enche de graça</span></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- O PACTO -->
+    <div class="page" id="pacto">
+      <section class="frame">
+        <h2>O Pacto — os termos da invocação</h2>
+        <div class="row"><label>Silêncio entre menções</label><input type="range" id="mention_cooldown_s" min="10" max="180" step="5"><span class="val" id="v_mention">—</span></div>
+        <div class="row"><label>Espera espontânea</label><input type="range" id="spont_cooldown_s" min="30" max="600" step="10"><span class="val" id="v_spont">—</span></div>
+        <div class="row"><label>Ímpeto de fala</label><input type="range" id="spont_chance" min="0" max="1" step="0.05"><span class="val" id="v_chance">—</span></div>
+        <div class="row"><label>Vigília da tela</label><input type="range" id="auto_cooldown_s" min="30" max="600" step="10"><span class="val" id="v_auto">—</span></div>
+        <div class="row"><label>Acuidade do ouvido</label><input type="range" id="vad_threshold" min="100" max="2000" step="50"><span class="val" id="v_vad">—</span></div>
+        <div class="row"><label>O olho que tudo vê</label><span class="val" style="width:auto"><input type="checkbox" id="vision" style="accent-color:var(--gold);width:18px;height:18px"></span></div>
+      </section>
+    </div>
+
+    <footer>⁘ que a graça te guie, Maculado ⁘</footer>
   </div>
-  <div id="liveSaid" style="font-size:14px;font-style:italic;color:var(--tx);min-height:20px;">—</div>
-</div>
+  <div class="toast" id="toast">Feito</div>
 
-<div class="card">
-  <h2>Personas</h2>
-  <div id="personaList"></div>
-</div>
+  <script>
+    // navegação entre abas
+    document.querySelectorAll('.tab').forEach(t=>{
+      t.onclick=()=>{
+        document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+        document.querySelectorAll('.page').forEach(x=>x.classList.remove('on'));
+        t.classList.add('on');
+        document.getElementById(t.dataset.t).classList.add('on');
+      };
+    });
+    function toast(msg){const e=document.getElementById('toast');if(msg)e.textContent=msg;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),1600);}
+    const post=(url)=>fetch(url,{method:'POST'}).catch(()=>{});
 
-<div class="card">
-  <h2 id="formTitle">Nova persona</h2>
-  <input id="pName" placeholder="Nome (ex: Vovó Gamer)">
-  <textarea id="pPrompt" placeholder="Descreva a personalidade..."></textarea>
-  <div style="display:flex;gap:8px;">
-    <button onclick="savePersona()">Salvar</button>
-    <button class="ghost" onclick="clearForm()">Limpar</button>
-  </div>
-</div>
+    // ---- WebSocket: atributos ao vivo ----
+    let lastSkin='avatar';
+    function connectWS(){
+      const ws=new WebSocket(`ws://${location.host}/ws`);
+      ws.onopen=()=>{document.getElementById('orb').classList.add('alive');document.getElementById('orbTxt').textContent='invocada';};
+      ws.onclose=()=>{document.getElementById('orb').classList.remove('alive');document.getElementById('orbTxt').textContent='ausente';setTimeout(connectWS,1500);};
+      ws.onmessage=e=>{
+        const s=JSON.parse(e.data);
+        // Espírito (humor)
+        document.getElementById('atSpirit').textContent=s.mood||'—';
+        // Vigor (energia)
+        const en=Math.round((s.energy||0)*100);
+        document.getElementById('atVigor').textContent=en;
+        document.getElementById('vigorBar').style.width=en+'%';
+        // fala
+        if(s.said)document.getElementById('said').textContent='“'+s.said.replace(/^\[[^\]]+\]\s*/,'')+'”';
+        // skin ativa (marca a miniatura)
+        if(s.skin&&s.skin!==lastSkin){lastSkin=s.skin;markSkin(s.skin);}
+      };
+    }
+    connectWS();
 
-<div class="card">
-  <h2>Animações</h2>
-  <div id="animBtns" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
-</div>
+    // ---- Vínculo / Convívio (endpoint /relation) ----
+    function loadRelation(){
+      fetch('/relation').then(r=>r.json()).then(d=>{
+        document.getElementById('atBond').textContent=d.level||'—';
+        document.getElementById('atTime').textContent=(d.minutes||0)+' min';
+        // barra do vínculo proporcional (900min = cheio)
+        const pct=Math.min(100,Math.round((d.minutes/900)*100));
+        document.getElementById('bondBar').style.width=pct+'%';
+      }).catch(()=>{});
+    }
+    loadRelation();setInterval(loadRelation,60000);
 
-<div class="card">
-  <h2>Objetos de cena</h2>
-  <div id="objBtns" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
-</div>
+    // ---- Dádivas (animação ou humor) ----
+    document.querySelectorAll('.invoke').forEach(b=>{
+      b.onclick=()=>{
+        if(b.dataset.anim){post('/anim?name='+b.dataset.anim);toast(b.textContent.trim());}
+        else if(b.dataset.mood){post('/mood?set='+b.dataset.mood);toast(b.textContent.trim());}
+      };
+    });
 
-<div class="card">
-  <h2>Skins</h2>
-  <div id="skinBtns" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
-</div>
+    // ---- Oferendas (recompensas) ----
+    document.querySelectorAll('.oferenda').forEach(o=>{
+      o.onclick=()=>{post('/reward?type='+o.dataset.reward+'&user=streamer');toast('oferenda: '+o.querySelector('b').textContent);};
+    });
 
-<div class="card">
-  <h2>Comportamento</h2>
-  <div class="row"><label>Cooldown menção</label><input type="range" id="mention_cooldown_s" min="10" max="180" step="5"><span class="val" id="v_mention"></span></div>
-  <div class="row"><label>Cooldown espontânea</label><input type="range" id="spont_cooldown_s" min="30" max="600" step="10"><span class="val" id="v_spont"></span></div>
-  <div class="row"><label>Chance espontânea</label><input type="range" id="spont_chance" min="0" max="1" step="0.05"><span class="val" id="v_chance"></span></div>
-  <div class="row"><label>Cooldown autônoma</label><input type="range" id="auto_cooldown_s" min="30" max="600" step="10"><span class="val" id="v_auto"></span></div>
-  <div class="row"><label>Sensibilidade mic</label><input type="range" id="vad_threshold" min="100" max="2000" step="50"><span class="val" id="v_vad"></span></div>
-  <div class="row"><label>Visão</label><input type="checkbox" id="vision"></div>
-  <button style="width:100%;padding:11px;" onclick="saveConfig()">Aplicar comportamento</button>
-</div>
+    // ---- Gestos (dispara animação + futuro preview) ----
+    const GESTOS=['Clapping','Jump','Goodbye','Thinking','Angry','Blush','Sleepy','Surprised','Relax','LookAround'];
+    const gl=document.getElementById('gestoList');
+    GESTOS.forEach(g=>{
+      const d=document.createElement('div');d.className='gesto';d.textContent=g;
+      d.onclick=()=>{post('/anim?name='+g);toast(g);document.querySelector('#previewStage .cap').textContent=g;};
+      gl.appendChild(d);
+    });
 
-<div class="toast" id="toast">Aplicado!</div>
+    // ---- Skins (marca ativa; troca ao clicar) ----
+    function markSkin(name){
+      document.querySelectorAll('.skin-thumb').forEach(t=>{
+        if(t.dataset.skin)t.classList.toggle('on',t.dataset.skin===name);
+      });
+    }
+    document.querySelectorAll('.skin-thumb').forEach(t=>{
+      if(t.dataset.skin)t.onclick=()=>{post('/skin?name='+t.dataset.skin);markSkin(t.dataset.skin);toast('veste: '+t.dataset.skin);};
+    });
 
-<script>
-let editId=null;
-const fields=['mention_cooldown_s','spont_cooldown_s','spont_chance','auto_cooldown_s','vad_threshold'];
-const fmt={mention_cooldown_s:v=>v+'s',spont_cooldown_s:v=>v+'s',spont_chance:v=>Math.round(v*100)+'%',auto_cooldown_s:v=>v+'s',vad_threshold:v=>v};
-const valId={mention_cooldown_s:'v_mention',spont_cooldown_s:'v_spont',spont_chance:'v_chance',auto_cooldown_s:'v_auto',vad_threshold:'v_vad'};
-fields.forEach(f=>document.getElementById(f).addEventListener('input',e=>document.getElementById(valId[f]).textContent=fmt[f](e.target.value)));
+    // ---- Almas (personas) ----
+    function loadSouls(){
+      fetch('/personas').then(r=>r.json()).then(list=>{
+        const el=document.getElementById('soulList');el.innerHTML='';
+        (list||[]).forEach(p=>{
+          const div=document.createElement('div');div.className='soul'+(p.active?' on':'');
+          div.innerHTML=`<div class="info"><b>${p.name}</b><span>${(p.prompt||'').slice(0,70)}${(p.prompt||'').length>70?'...':''}</span></div>
+            <div class="act">${p.active?'<span class="seal">✦ vestida</span>':'<button class="rune-btn" data-act="'+p.id+'">vestir</button>'}</div>`;
+          el.appendChild(div);
+        });
+        el.querySelectorAll('[data-act]').forEach(b=>{
+          b.onclick=()=>{post('/personas/'+b.dataset.act+'/activate').then(()=>{toast('alma vestida');setTimeout(loadSouls,300);});};
+        });
+      }).catch(()=>{document.getElementById('soulList').innerHTML='<div style="text-align:center;color:var(--mist)">sem almas ou erro ao carregar</div>';});
+    }
+    loadSouls();
 
-function toast(){const t=document.getElementById('toast');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800);}
-function clearForm(){editId=null;document.getElementById('pName').value='';document.getElementById('pPrompt').value='';document.getElementById('formTitle').textContent='Nova persona';}
-
-async function loadPersonas(){
-  const r=await fetch('/personas');const list=await r.json()||[];
-  const el=document.getElementById('personaList');el.innerHTML='';
-  list.forEach(p=>{
-    const d=document.createElement('div');d.className='persona'+(p.active?' active':'');
-    d.innerHTML=`<span class="nm">${p.name}</span>${p.active?'<span class="tag">ATIVA</span>':''}
-      <button onclick="activate(${p.id})">Ativar</button>
-      <button class="ghost" onclick="edit(${p.id},${JSON.stringify(p.name).replace(/"/g,'&quot;')},${JSON.stringify(p.prompt).replace(/"/g,'&quot;')})">Editar</button>
-      <button class="danger" onclick="del(${p.id})">×</button>`;
-    el.appendChild(d);
-  });
-}
-async function activate(id){await fetch('/personas/'+id+'/activate',{method:'POST'});toast();loadPersonas();}
-async function del(id){if(!confirm('Apagar?'))return;await fetch('/personas/'+id,{method:'DELETE'});loadPersonas();}
-function edit(id,name,prompt){editId=id;document.getElementById('pName').value=name;document.getElementById('pPrompt').value=prompt;document.getElementById('formTitle').textContent='Editar: '+name;window.scrollTo(0,300);}
-async function savePersona(){
-  const name=document.getElementById('pName').value,prompt=document.getElementById('pPrompt').value;
-  if(!name||!prompt)return alert('Preencha nome e prompt');
-  if(editId){await fetch('/personas/'+editId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,prompt})});}
-  else{await fetch('/personas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,prompt})});}
-  clearForm();toast();loadPersonas();
-}
-
-async function loadConfig(){
-  try{
-    const c=await(await fetch('/config')).json();
-    document.getElementById('status').className='status on';document.getElementById('status').textContent='bot online';
-    fields.forEach(f=>{document.getElementById(f).value=c[f];document.getElementById(valId[f]).textContent=fmt[f](c[f]);});
-    document.getElementById('vision').checked=c.vision;
-    loadPersonas();
-  }catch{
-    document.getElementById('status').className='status off';document.getElementById('status').textContent='bot offline';
-  }
-}
-async function saveConfig(){
-  const body={vision:document.getElementById('vision').checked};
-  fields.forEach(f=>body[f]=parseFloat(document.getElementById(f).value));
-  await fetch('/config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  toast();
-}
-
-const ANIMS = ['Clapping','Jump','Goodbye','LookAround','Thinking','Surprised','Angry','Sad','Sleepy','Blush','Relax'];
-function renderAnims(){
-  const el = document.getElementById('animBtns');
-  if (!el) return;
-  el.innerHTML = '';
-  ANIMS.forEach(a => {
-    const b = document.createElement('button');
-    b.className = 'ghost'; b.textContent = a;
-    b.onclick = () => { fetch('/anim?name='+a, {method:'POST'}); toast(); };
-    el.appendChild(b);
-  });
-}
-renderAnims();
-
-const OBJECTS = ['suor','coracao','zzz','surpresa','nota','raiva','none'];
-function renderObjects(){
-  const el = document.getElementById('objBtns');
-  if (!el) return;
-  el.innerHTML = '';
-  OBJECTS.forEach(o => {
-    const b = document.createElement('button');
-    b.className = 'ghost'; b.textContent = o === 'none' ? 'limpar' : o;
-    b.onclick = () => { fetch('/object?name='+o, {method:'POST'}); toast(); };
-    el.appendChild(b);
-  });
-}
-renderObjects();
-
-const SKINS = ['avatar'];
-function renderSkins(){
-  const el = document.getElementById('skinBtns');
-  if (!el) return;
-  el.innerHTML = '';
-  SKINS.forEach(s => {
-    const b = document.createElement('button');
-    b.className = 'ghost'; b.textContent = s;
-    b.onclick = () => { fetch('/skin?name='+s, {method:'POST'}); toast(); };
-    el.appendChild(b);
-  });
-}
-renderSkins();
-
-
-
-function connectFeed(){
-  const ws = new WebSocket(`ws://${location.host}/ws`);
-  ws.onmessage = e => {
-    const s = JSON.parse(e.data);
-    document.getElementById('liveMood').textContent = s.mood || '-';
-    document.getElementById('liveAnim').textContent = s.anim || '-';
-    if (s.phase) document.getElementById('liveEnergy').textContent = s.phase + ' (' + Math.round((s.energy||0)*100) + '%)';
-    document.getElementById('liveSpeak').textContent = s.speaking ? '🔊 falando' : '🔇';
-    if (s.said) document.getElementById('liveSaid').textContent = '"'+s.said+'"';
-  };
-  ws.onclose = () => setTimeout(connectFeed, 1500);
-}
-connectFeed();
-
-
-loadConfig();setInterval(loadConfig,15000);
-</script>
+    // ---- O Pacto (sliders de config) ----
+    const cfgFields=[
+      ['mention_cooldown_s','v_mention','s'],['spont_cooldown_s','v_spont','s'],
+      ['spont_chance','v_chance','%'],['auto_cooldown_s','v_auto','s'],
+      ['vad_threshold','v_vad','']
+    ];
+    function loadConfig(){
+      fetch('/config').then(r=>r.json()).then(c=>{
+        cfgFields.forEach(([id,vid,suf])=>{
+          if(c[id]!==undefined){
+            const inp=document.getElementById(id);inp.value=c[id];
+            document.getElementById(vid).textContent=(suf==='%'?Math.round(c[id]*100):c[id])+suf;
+          }
+        });
+        if(c.vision!==undefined)document.getElementById('vision').checked=c.vision;
+      }).catch(()=>{});
+    }
+    loadConfig();
+    cfgFields.forEach(([id,vid,suf])=>{
+      const inp=document.getElementById(id);
+      inp.oninput=()=>{document.getElementById(vid).textContent=(suf==='%'?Math.round(inp.value*100):inp.value)+suf;};
+      inp.onchange=()=>{
+        const body={};body[id]=(suf==='%')?parseFloat(inp.value):parseInt(inp.value);
+        fetch('/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(()=>toast('pacto selado'));
+      };
+    });
+    document.getElementById('vision').onchange=e=>{
+      fetch('/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vision:e.target.checked})}).then(()=>toast('pacto selado'));
+    };
+  </script>
 </body>
 </html>
