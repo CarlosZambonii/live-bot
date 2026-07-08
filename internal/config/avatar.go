@@ -130,3 +130,20 @@ func EnergyAPI(mux *http.ServeMux, m *mood.State) {
 		w.Write([]byte("ok"))
 	})
 }
+
+// RewardAPI recebe resgates de recompensa: POST /reward?type=agua&user=fulano
+// Dispara o callback registrado (ligado ao orchestrator.HandleReward).
+func RewardAPI(mux *http.ServeMux, onReward func(tipo, user string)) {
+	mux.HandleFunc("/reward", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		tipo := r.URL.Query().Get("type")
+		user := r.URL.Query().Get("user")
+		if user == "" {
+			user = "alguém"
+		}
+		if tipo != "" && onReward != nil {
+			go onReward(tipo, user)
+		}
+		w.Write([]byte("ok"))
+	})
+}

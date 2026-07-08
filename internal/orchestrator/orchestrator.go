@@ -637,3 +637,40 @@ func relLevelDesc(min int) string {
 		return "Vocês são muito próximos, quase cúmplices. Seja atrevida, debochada no bom sentido, com total intimidade e piadas particulares de vocês."
 	}
 }
+
+// HandleReward processa uma recompensa resgatada pelo chat (channel points).
+// Cada tipo aciona uma reação: energia, humor, animação e uma fala curta.
+func (o *Orchestrator) HandleReward(tipo, user string) {
+	log.Printf("[recompensa] %s resgatou: %s", user, tipo)
+	if o.Mood == nil {
+		return
+	}
+	var fala string
+	switch tipo {
+	case "agua":
+		o.Mood.SetEnergy(o.Mood.Energy() + 0.4) // recupera energia
+		o.Mood.SetForce("animada")
+		o.Mood.SetAnim("Clapping")
+		fala = user + " me deu água! Ahh, revigorada! Valeu demais!"
+	case "cutucar":
+		o.Mood.SetForce("provocada")
+		o.Mood.SetAnim("Angry")
+		fala = "Ei, " + user + ", parou de me cutucar! Kkk"
+	case "dancar":
+		o.Mood.SetForce("animada")
+		o.Mood.SetAnim("Clapping")
+		fala = "Bora que o " + user + " pediu dança!"
+	case "dormir":
+		o.Mood.SetEnergy(0.1)
+		o.Mood.SetForce("entediada")
+		o.Mood.SetAnim("Sleepy")
+		fala = "Hmm... o " + user + " quer que eu tire uma soneca... *boceja*"
+	case "elogiar":
+		o.Mood.SetForce("animada")
+		o.Mood.SetAnim("Blush")
+		fala = "Awn, obrigada " + user + "! Fiquei toda boba agora."
+	default:
+		fala = "Valeu pela recompensa, " + user + "!"
+	}
+	o.speakPriority(fala)
+}

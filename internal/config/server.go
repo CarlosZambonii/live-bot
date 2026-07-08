@@ -38,7 +38,7 @@ func toDTO(c Config) dto {
 }
 
 // Serve sobe a API de config + painel + rotas de personas. Bloqueante.
-func (c *Config) Serve(addr string, store *memory.Store, m *mood.State) error {
+func (c *Config) Serve(addr string, store *memory.Store, m *mood.State, onReward func(string, string)) error {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/config", func(w http.ResponseWriter, r *http.Request) {
@@ -98,6 +98,7 @@ func (c *Config) Serve(addr string, store *memory.Store, m *mood.State) error {
 		ObjectAPI(mux, m)
 		MoodAPI(mux, m)
 		SkinAPI(mux, m)
+		RewardAPI(mux, onReward)
 		EnergyAPI(mux, m)
 	}
 

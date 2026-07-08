@@ -193,3 +193,16 @@ func (s *State) EnergyPhase() string {
 		return "sonolenta"
 	}
 }
+
+
+// SetForce muda o humor imediatamente, ignorando a inércia (pra ações explícitas: recompensas, comandos).
+func (s *State) SetForce(m string) {
+	if !Valid[m] {
+		m = "neutra"
+	}
+	s.mu.Lock()
+	s.current = m
+	s.target = m
+	s.targetHits = 0
+	s.mu.Unlock()
+}

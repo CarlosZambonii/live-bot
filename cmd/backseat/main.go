@@ -62,11 +62,6 @@ func main() {
 	searcher := tools.NewSearcher(os.Getenv("TAVILY_API_KEY"))
 	br := brain.New(apiKey, env("OPENAI_MODEL", "gpt-4o-mini"), env("PERSONA", defaultPersona))
 	br.SetSearcher(searcher)
-	go func() {
-		if err := cfg.Serve("127.0.0.1:8090", mem, moodState); err != nil {
-			log.Printf("[config] server: %v", err)
-		}
-	}()
 
 	o := &orchestrator.Orchestrator{
 		STT:          stt.New(env("VOICEBOX_URL", "http://127.0.0.1:17493"), env("STT_MODEL", "whisper-base")),
@@ -80,6 +75,11 @@ func main() {
 		Memory:       mem,
 	}
 
+	go func() {
+		if err := cfg.Serve("127.0.0.1:8090", mem, moodState, o.HandleReward); err != nil {
+			log.Printf("[config] server: %v", err)
+		}
+	}()
 	log.Println("Backseat — Fase 1: loop de voz")
 	o.Run()
 }
