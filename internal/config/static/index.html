@@ -109,6 +109,20 @@
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--stone2);border:1px solid var(--gold);color:var(--gold-lt);font-family:'Cinzel';font-size:12px;letter-spacing:2px;padding:12px 22px;z-index:20;transition:.3s;text-transform:uppercase}
   .toast.show{transform:translateX(-50%) translateY(0)}
   @media(max-width:880px){.forge,.gestos-layout{grid-template-columns:1fr}.figure{min-height:340px;order:-1}header h1{font-size:24px}.row label{width:130px}}
+
+  .modal-bg{position:fixed;inset:0;background:rgba(5,6,4,.85);z-index:30;display:none;place-items:center;backdrop-filter:blur(3px)}
+  .modal-bg.show{display:grid}
+  .modal{width:min(520px,92vw);background:linear-gradient(180deg,var(--stone2),var(--stone));border:1px solid var(--gold-dim);padding:28px;position:relative;box-shadow:0 0 50px rgba(0,0,0,.7)}
+  .modal::before,.modal::after{content:'';position:absolute;width:16px;height:16px;border:1px solid var(--gold);opacity:.7}
+  .modal::before{top:6px;left:6px;border-right:none;border-bottom:none}
+  .modal::after{bottom:6px;right:6px;border-left:none;border-top:none}
+  .modal h3{font-family:'Cinzel';font-size:15px;letter-spacing:2px;color:var(--gold);text-transform:uppercase;text-align:center;margin-bottom:20px}
+  .modal input,.modal textarea{width:100%;background:var(--void);border:1px solid var(--line);color:var(--parch);font-family:'EB Garamond';font-size:15px;padding:12px;margin-bottom:14px;resize:vertical}
+  .modal textarea{min-height:130px;line-height:1.5}
+  .modal input:focus,.modal textarea:focus{outline:none;border-color:var(--gold)}
+  .modal .actions{display:flex;gap:10px;justify-content:flex-end;margin-top:6px}
+  .soul .act .del{border-color:var(--blood);color:var(--blood)}
+  .soul .act .del:hover{background:rgba(156,61,46,.15)}
 </style>
 </head>
 <body>
@@ -225,6 +239,17 @@
 
     <footer>⁘ que a graça te guie, Maculado ⁘</footer>
   </div>
+  <div class="modal-bg" id="soulModal">
+    <div class="modal">
+      <h3 id="soulModalTitle">Forjar Alma</h3>
+      <input id="soulName" placeholder="Nome da alma (ex: O Bardo)">
+      <textarea id="soulPrompt" placeholder="Descreva a personalidade, o jeito de falar, as regras..."></textarea>
+      <div class="actions">
+        <button class="rune-btn" id="soulCancel">cancelar</button>
+        <button class="rune-btn" id="soulSave" style="border-color:var(--gold);color:var(--gold-lt)">selar</button>
+      </div>
+    </div>
+  </div>
   <div class="toast" id="toast">Feito</div>
 
   <script>
@@ -266,8 +291,11 @@
     function loadRelation(){
       fetch('/relation').then(r=>r.json()).then(d=>{
         document.getElementById('atBond').textContent=d.level||'—';
-        document.getElementById('atTime').textContent=(d.minutes||0)+' min';
-        // barra do vínculo proporcional (900min = cheio)
+        // convívio mostra progressão pro próximo marco
+        let t=(d.minutes||0)+' min';
+        if(d.next&&d.remain>0){const h=Math.floor(d.remain/60),m=d.remain%60;t+=' · '+d.next+' em '+(h>0?h+'h':'')+m+'m';}
+        document.getElementById('atTime').textContent=t;
+        document.getElementById('atTime').style.fontSize='12px';
         const pct=Math.min(100,Math.round((d.minutes/900)*100));
         document.getElementById('bondBar').style.width=pct+'%';
       }).catch(()=>{});
@@ -307,20 +335,41 @@
     });
 
     // ---- Almas (personas) ----
+    let editingId = null;
     function loadSouls(){
       fetch('/personas').then(r=>r.json()).then(list=>{
         const el=document.getElementById('soulList');el.innerHTML='';
         (list||[]).forEach(p=>{
           const div=document.createElement('div');div.className='soul'+(p.active?' on':'');
-          div.innerHTML=`<div class="info"><b>${p.name}</b><span>${(p.prompt||'').slice(0,70)}${(p.prompt||'').length>70?'...':''}</span></div>
-            <div class="act">${p.active?'<span class="seal">✦ vestida</span>':'<button class="rune-btn" data-act="'+p.id+'">vestir</button>'}</div>`;
+          div.innerHTML=`<div class="info"><b>${p.name}</b><span>${(p.prompt||'').slice(0,70)}${(p.prompt||'').length>70?'...':''}</span></div><div class="act"></div>`;
+          const act=div.querySelector('.act');
+          if(p.active){const s=document.createElement('span');s.className='seal';s.textContent='✦ vestida';act.appendChild(s);}
+          else{const b=document.createElement('button');b.className='rune-btn';b.textContent='vestir';b.onclick=()=>{fetch('/personas/'+p.id+'/activate',{method:'POST'}).then(()=>{toast('alma vestida');setTimeout(loadSouls,300);});};act.appendChild(b);}
+          const e=document.createElement('button');e.className='rune-btn';e.textContent='editar';e.onclick=()=>openSoul(p);act.appendChild(e);
+          const d=document.createElement('button');d.className='rune-btn del';d.textContent='✕';d.onclick=()=>{if(confirm('Descartar a alma "'+p.name+'"?')){fetch('/personas/'+p.id,{method:'DELETE'}).then(()=>{toast('alma descartada');setTimeout(loadSouls,300);});}};act.appendChild(d);
           el.appendChild(div);
         });
-        el.querySelectorAll('[data-act]').forEach(b=>{
-          b.onclick=()=>{post('/personas/'+b.dataset.act+'/activate').then(()=>{toast('alma vestida');setTimeout(loadSouls,300);});};
-        });
-      }).catch(()=>{document.getElementById('soulList').innerHTML='<div style="text-align:center;color:var(--mist)">sem almas ou erro ao carregar</div>';});
+      }).catch(()=>{document.getElementById('soulList').innerHTML='<div style="text-align:center;color:var(--mist)">sem almas ou erro</div>';});
     }
+    function openSoul(p){
+      editingId = p ? p.id : null;
+      document.getElementById('soulModalTitle').textContent = p ? 'Reforjar Alma' : 'Forjar Alma';
+      document.getElementById('soulName').value = p ? p.name : '';
+      document.getElementById('soulPrompt').value = p ? p.prompt : '';
+      document.getElementById('soulModal').classList.add('show');
+    }
+    document.getElementById('newSoul').onclick = ()=>openSoul(null);
+    document.getElementById('soulCancel').onclick = ()=>document.getElementById('soulModal').classList.remove('show');
+    document.getElementById('soulSave').onclick = ()=>{
+      const name=document.getElementById('soulName').value.trim();
+      const prompt=document.getElementById('soulPrompt').value.trim();
+      if(!name||!prompt){toast('nome e alma obrigatórios');return;}
+      const body=JSON.stringify({name,prompt});
+      const req = editingId
+        ? fetch('/personas/'+editingId,{method:'PUT',headers:{'Content-Type':'application/json'},body})
+        : fetch('/personas',{method:'POST',headers:{'Content-Type':'application/json'},body});
+      req.then(()=>{document.getElementById('soulModal').classList.remove('show');toast(editingId?'alma reforjada':'alma forjada');setTimeout(loadSouls,300);});
+    };
     loadSouls();
 
     // ---- O Pacto (sliders de config) ----
@@ -407,7 +456,7 @@ async function buildGallery(){
   grid.innerHTML = '';
   for(const name of names){
     const cell = document.createElement('div');
-    cell.className = 'skin-thumb';
+    cell.className = 'skin-thumb' + (name===lastSkin?' on':'');
     cell.dataset.skin = name;
     cell.textContent = name; // placeholder enquanto renderiza
     cell.onclick = ()=>{

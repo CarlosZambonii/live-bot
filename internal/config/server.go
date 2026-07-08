@@ -111,16 +111,16 @@ func (c *Config) Serve(addr string, store *memory.Store, m *mood.State, onReward
 		if store != nil {
 			min = store.RelMinutes()
 		}
-		level := "estranhos"
+		level, next, remain := "estranhos", "conhecidos", 60-min
 		switch {
 		case min >= 900:
-			level = "íntima"
+			level, next, remain = "íntima", "", 0
 		case min >= 300:
-			level = "próximos"
+			level, next, remain = "próximos", "íntima", 900-min
 		case min >= 60:
-			level = "conhecidos"
+			level, next, remain = "conhecidos", "próximos", 300-min
 		}
-		fmt.Fprintf(w, `{"minutes":%d,"level":"%s"}`, min, level)
+		fmt.Fprintf(w, `{"minutes":%d,"level":"%s","next":"%s","remain":%d}`, min, level, next, remain)
 	})
 	// skins servidas do disco (arquivos grandes, fora do go:embed)
 	mux.HandleFunc("/skins-list", func(w http.ResponseWriter, r *http.Request) {
