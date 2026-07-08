@@ -89,7 +89,7 @@
   .gesto-list{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .gesto{font-family:'EB Garamond';font-size:15px;color:var(--parch);padding:11px;background:rgba(212,175,106,.05);border:1px solid var(--line);cursor:pointer;text-align:center;transition:.18s}
   .gesto:hover{border-color:var(--gold);color:var(--gold-lt);background:rgba(212,175,106,.12)}
-  .preview-stage{aspect-ratio:1/1;background:radial-gradient(circle at 50% 45%,rgba(212,175,106,.08),transparent 60%),linear-gradient(180deg,var(--stone),var(--void2));border:1px solid var(--line);display:grid;place-items:center;color:var(--mist);font-style:italic;text-align:center;position:relative;overflow:hidden}
+  .preview-stage{height:340px;background:radial-gradient(circle at 50% 45%,rgba(212,175,106,.08),transparent 60%),linear-gradient(180deg,var(--stone),var(--void2));border:1px solid var(--line);display:grid;place-items:center;color:var(--mist);font-style:italic;text-align:center;position:relative;overflow:hidden}
   .preview-stage .cap{position:absolute;bottom:12px;left:0;right:0;text-align:center;font-family:'Cinzel';font-size:11px;letter-spacing:2px;color:var(--gold-dim)}
 
   .oferenda-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
@@ -398,6 +398,9 @@
         fetch('/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(()=>toast('pacto selado'));
       };
     });
+
+
+
     document.getElementById('vision').onchange=e=>{
       fetch('/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vision:e.target.checked})}).then(()=>toast('pacto selado'));
     };
