@@ -1,6 +1,9 @@
 package tools
 
 import (
+	"math/rand"
+	"strings"
+	"os"
 	"fmt"
 	"os/exec"
 	"strconv"
@@ -38,4 +41,45 @@ func MusicControl(action string) string {
 		return "ok, agora tocando: " + string(out)
 	}
 	return "música: " + action
+}
+
+
+// ListSkins lê os .vrm disponíveis na pasta skins_disk.
+func ListSkins() []string {
+	entries, err := os.ReadDir("skins_disk")
+	if err != nil {
+		return nil
+	}
+	var names []string
+	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), ".vrm") {
+			names = append(names, strings.TrimSuffix(e.Name(), ".vrm"))
+		}
+	}
+	return names
+}
+
+// PickSkin resolve o pedido: vazio/"aleatoria"=random, número=índice, nome=match. Devolve o nome escolhido ou "".
+func PickSkin(pedido string) string {
+	skins := ListSkins()
+	if len(skins) == 0 {
+		return ""
+	}
+	p := strings.ToLower(strings.TrimSpace(pedido))
+	if p == "" || strings.Contains(p, "aleat") || strings.Contains(p, "qualquer") || strings.Contains(p, "random") {
+		return skins[rand.Intn(len(skins))]
+	}
+	// número (skin 5)
+	if n, err := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(p, "skin"))); err == nil {
+		if n >= 1 && n <= len(skins) {
+			return skins[n-1]
+		}
+	}
+	// nome parcial
+	for _, s := range skins {
+		if strings.Contains(strings.ToLower(s), p) {
+			return s
+		}
+	}
+	return skins[rand.Intn(len(skins))] // não achou: aleatória
 }

@@ -100,7 +100,7 @@ func (c *Config) Serve(addr string, store *memory.Store, m *mood.State, onReward
 		AnimAPI(mux, m)
 		ObjectAPI(mux, m)
 		MoodAPI(mux, m)
-		SkinAPI(mux, m)
+		SkinAPI(mux, m, store)
 		RewardAPI(mux, onReward)
 		EnergyAPI(mux, m)
 	}

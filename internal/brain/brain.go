@@ -29,6 +29,7 @@ type Client struct {
 	narrative  string
 
 	search *tools.Searcher
+	OnSkin func(pedido string) string // troca skin, devolve nome escolhido
 }
 
 type message struct {
@@ -152,6 +153,23 @@ func musicToolDef() map[string]any {
 	}
 }
 
+// skinToolDef: ferramenta de troca de aparência/skin.
+func skinToolDef() map[string]any {
+	return map[string]any{
+		"type": "function",
+		"function": map[string]any{
+			"name":        "mudar_skin",
+			"description": "Muda a aparência/skin/roupa/visual da Dora quando o streamer pede. Pode ser aleatória, por número (skin 5) ou por nome.",
+			"parameters": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"pedido": map[string]any{"type": "string", "description": "O que o streamer pediu: vazio ou 'aleatoria' pra random, um número como '5', ou um nome"},
+				},
+			},
+		},
+	}
+}
+
 // searchTool descreve a ferramenta de busca pro modelo.
 func searchToolDef() map[string]any {
 	return map[string]any{
@@ -189,7 +207,7 @@ func (c *Client) Think(userText string) (string, error) {
 			"max_tokens": 150,
 		}
 		if c.search != nil && c.search.Enabled() {
-			reqBody["tools"] = []any{searchToolDef(), volumeToolDef(), musicToolDef()}
+			reqBody["tools"] = []any{searchToolDef(), volumeToolDef(), musicToolDef(), skinToolDef()}
 		}
 		body, _ := json.Marshal(reqBody)
 
@@ -255,6 +273,18 @@ func (c *Client) Think(userText string) (string, error) {
 				json.Unmarshal([]byte(tc.Function.Arguments), &args)
 				log.Printf("[música] %s", args.Action)
 				result = tools.MusicControl(args.Action)
+			case "mudar_skin":
+				var args struct {
+					Pedido string `json:"pedido"`
+				}
+				json.Unmarshal([]byte(tc.Function.Arguments), &args)
+				if c.OnSkin != nil {
+					escolhida := c.OnSkin(args.Pedido)
+					log.Printf("[skin] trocada para %s", escolhida)
+					result = "aparência trocada para: " + escolhida
+				} else {
+					result = "não consigo trocar de skin agora"
+				}
 			default:
 				result = "ferramenta desconhecida"
 			}

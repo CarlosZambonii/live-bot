@@ -80,6 +80,19 @@ func main() {
 			log.Printf("[config] server: %v", err)
 		}
 	}()
+	if mem != nil {
+		moodState.SetSkin(mem.LoadSkin())
+	}
+	br.OnSkin = func(pedido string) string {
+		nome := tools.PickSkin(pedido)
+		if nome != "" {
+			moodState.SetSkin(nome)
+			if mem != nil {
+				mem.SaveSkin(nome)
+			}
+		}
+		return nome
+	}
 	log.Println("Backseat — Fase 1: loop de voz")
 	o.Run()
 }

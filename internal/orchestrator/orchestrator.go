@@ -686,7 +686,7 @@ func (o *Orchestrator) HandleReward(tipo, user string) {
 // isActionCommand detecta pedidos de ação (volume, música) que precisam das tools.
 func isActionCommand(text string) bool {
 	t := strings.ToLower(text)
-	kw := []string{"volume", "som", "música", "musica", "pausa", "pause", "toca", "tocar", "próxima", "proxima", "pula", "abaixa", "aumenta", "diminui", "mais alto", "mais baixo"}
+	kw := []string{"volume", "som", "música", "musica", "pausa", "pause", "toca", "tocar", "próxima", "proxima", "pula", "abaixa", "aumenta", "diminui", "mais alto", "mais baixo", "skin", "aparência", "aparencia", "roupa", "visual", "veste", "muda de"}
 	for _, k := range kw {
 		if strings.Contains(t, k) {
 			return true

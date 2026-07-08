@@ -5,6 +5,8 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+
+	"github.com/CarlosZambonii/backseat/internal/memory"
 	"time"
 
 	"github.com/CarlosZambonii/backseat/internal/mood"
@@ -103,11 +105,14 @@ func animForMoodAvatar(m string) string {
 }
 
 // SkinAPI troca a skin: POST /skin?name=avatar
-func SkinAPI(mux *http.ServeMux, m *mood.State) {
+func SkinAPI(mux *http.ServeMux, m *mood.State, store *memory.Store) {
 	mux.HandleFunc("/skin", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		if n := r.URL.Query().Get("name"); n != "" {
 			m.SetSkin(n)
+			if store != nil {
+				store.SaveSkin(n)
+			}
 		}
 		w.Write([]byte("ok"))
 	})
