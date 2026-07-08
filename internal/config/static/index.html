@@ -40,6 +40,7 @@
   <div style="font-size:13px;color:var(--mut);margin-bottom:6px;">
     humor: <span id="liveMood" style="color:var(--ac)">-</span>
     · anim: <span id="liveAnim" style="color:var(--ac)">-</span>
+    · energia: <span id="liveEnergy" style="color:var(--ac)">-</span>
     · <span id="liveSpeak">🔇</span>
   </div>
   <div id="liveSaid" style="font-size:14px;font-style:italic;color:var(--tx);min-height:20px;">—</div>
@@ -189,6 +190,7 @@ function connectFeed(){
     const s = JSON.parse(e.data);
     document.getElementById('liveMood').textContent = s.mood || '-';
     document.getElementById('liveAnim').textContent = s.anim || '-';
+    if (s.phase) document.getElementById('liveEnergy').textContent = s.phase + ' (' + Math.round((s.energy||0)*100) + '%)';
     document.getElementById('liveSpeak').textContent = s.speaking ? '🔊 falando' : '🔇';
     if (s.said) document.getElementById('liveSaid').textContent = '"'+s.said+'"';
   };

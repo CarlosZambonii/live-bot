@@ -59,6 +59,11 @@ func (o *Orchestrator) Run() {
 			for range tick.C {
 				total := o.Memory.AddMinutes(5)
 				log.Printf("[relação] convívio: %d min acumulados", total)
+				// energia decai ~0.08 a cada 5min (Dora cansa ao longo da sessão)
+				if o.Mood != nil {
+					o.Mood.SetEnergy(o.Mood.Energy() - 0.08)
+					log.Printf("[energia] %.2f (%s)", o.Mood.Energy(), o.Mood.EnergyPhase())
+				}
 			}
 		}()
 	}
@@ -110,6 +115,9 @@ func (o *Orchestrator) Run() {
 		relMin := o.Memory.RelMinutes()
 		mem += "\n\nNível de intimidade de vocês: " + relLevelDesc(relMin)
 		log.Printf("[relação] %d min de convívio", relMin)
+		if o.Mood != nil {
+			mem += "\n\nSua energia agora está: " + o.Mood.EnergyPhase() + ". Se estiver cansada ou sonolenta, demonstre isso no jeito de responder (mais lenta, bocejos, menos animada)."
+		}
 		if mem != "" {
 			o.Brain.SetMemory(mem)
 		}

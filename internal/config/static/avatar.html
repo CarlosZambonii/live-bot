@@ -220,10 +220,11 @@ function animate(){
     p.material.opacity = Math.max(0, 1 - p.userData.life/2);
     if (p.userData.life > 2) { scene.remove(p); particles.splice(i,1); }
   }
-  // emotes: forçado (teste) ou por humor
+  // emotes: forçado (teste) ou por humor/energia
   for (const k in sceneObjects) sceneObjects[k].visible = false;
   const moodEmote = { entediada:'zzz', animada:'nota', zoeira:'coracao', provocada:'raiva', surpresa:'surpresa' };
-  const forced = forcedObject || state.object || moodEmote[state.mood];
+  const lowEnergy = (state.energy !== undefined && state.energy < 0.2);
+  const forced = forcedObject || state.object || (lowEnergy ? 'zzz' : moodEmote[state.mood]);
   if (forced && sceneObjects[forced]) {
     const spr = sceneObjects[forced];
     spr.visible = true;
@@ -263,6 +264,9 @@ function animate(){
       let base = 3;
       if (state.mood === 'animada' || state.mood === 'surpresa') base = 1.5;
       else if (state.mood === 'entediada') base = 5;
+      // energia baixa = pisca mais devagar e cansado
+      const e = (state.energy === undefined) ? 1 : state.energy;
+      base += (1 - e) * 3;
       nextBlink = base + Math.random()*2;
     }
     if (em) em.setValue('blink', Math.max(0, Math.min(1, blinkVal)));
@@ -281,7 +285,8 @@ function animate(){
       const chest = h.getNormalizedBoneNode('chest');
       if (chest) chest.rotation.x = Math.sin(t*1.6)*0.035;
       const head = h.getNormalizedBoneNode('head');
-      if (head) { head.rotation.y = Math.sin(t*0.4)*0.06 + lookX*0.15; head.rotation.x = Math.sin(t*0.6)*0.03; }
+      const tired = (state.energy !== undefined) ? (1 - state.energy) : 0;
+      if (head) { head.rotation.y = Math.sin(t*0.4)*0.06 + lookX*0.15; head.rotation.x = Math.sin(t*0.6)*0.03 + tired*0.25; }
       lookT += dt;
       if (state.speaking) {
         // falando: olha pra frente (streamer), com micro-variação

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/CarlosZambonii/backseat/internal/mood"
@@ -24,7 +25,7 @@ func AvatarWS(mux *http.ServeMux, m *mood.State) {
 		ticker := time.NewTicker(100 * time.Millisecond)
 		defer ticker.Stop()
 		for range ticker.C {
-			state := map[string]any{"mood": m.Get(), "speaking": m.IsSpeaking(), "dancing": m.IsDancing(), "anim": m.Anim(), "mouth": m.Mouth(), "said": m.LastSaid(), "object": m.Object(), "skin": m.Skin()}
+			state := map[string]any{"mood": m.Get(), "speaking": m.IsSpeaking(), "dancing": m.IsDancing(), "anim": m.Anim(), "mouth": m.Mouth(), "said": m.LastSaid(), "object": m.Object(), "skin": m.Skin(), "energy": m.Energy(), "phase": m.EnergyPhase()}
 			b, _ := json.Marshal(state)
 			if err := conn.WriteMessage(websocket.TextMessage, b); err != nil {
 				log.Println("[avatar] desconectado")
@@ -107,6 +108,24 @@ func SkinAPI(mux *http.ServeMux, m *mood.State) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		if n := r.URL.Query().Get("name"); n != "" {
 			m.SetSkin(n)
+		}
+		w.Write([]byte("ok"))
+	})
+}
+
+// EnergyAPI ajusta a energia: POST /energy?set=1.0 ou /energy?add=0.3
+func EnergyAPI(mux *http.ServeMux, m *mood.State) {
+	mux.HandleFunc("/energy", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		if s := r.URL.Query().Get("set"); s != "" {
+			if v, err := strconv.ParseFloat(s, 64); err == nil {
+				m.SetEnergy(v)
+			}
+		}
+		if a := r.URL.Query().Get("add"); a != "" {
+			if v, err := strconv.ParseFloat(a, 64); err == nil {
+				m.SetEnergy(m.Energy() + v)
+			}
 		}
 		w.Write([]byte("ok"))
 	})

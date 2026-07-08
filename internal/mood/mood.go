@@ -17,6 +17,7 @@ type State struct {
 	lastSaid string
 	object string
 	skin   string
+	energy float64
 }
 
 var Valid = map[string]bool{
@@ -25,7 +26,7 @@ var Valid = map[string]bool{
 }
 
 func New() *State {
-	return &State{current: "neutra"}
+	return &State{current: "neutra", energy: 1.0}
 }
 
 func (s *State) Set(m string) {
@@ -159,4 +160,36 @@ func (s *State) Skin() string {
 		return "avatar"
 	}
 	return s.skin
+}
+func (s *State) SetEnergy(e float64) {
+	s.mu.Lock()
+	if e < 0 {
+		e = 0
+	} else if e > 1 {
+		e = 1
+	}
+	s.energy = e
+	s.mu.Unlock()
+}
+
+func (s *State) Energy() float64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.energy
+}
+
+// EnergyPhase traduz a energia numa fase (pro comportamento).
+func (s *State) EnergyPhase() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	switch {
+	case s.energy > 0.7:
+		return "cheia"
+	case s.energy > 0.4:
+		return "normal"
+	case s.energy > 0.15:
+		return "cansada"
+	default:
+		return "sonolenta"
+	}
 }
