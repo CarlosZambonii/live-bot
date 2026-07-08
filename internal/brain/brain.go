@@ -116,6 +116,42 @@ func (c *Client) systemPrompt() string {
 	return s
 }
 
+// volumeToolDef: ferramenta de ajuste de volume.
+func volumeToolDef() map[string]any {
+	return map[string]any{
+		"type": "function",
+		"function": map[string]any{
+			"name":        "ajustar_volume",
+			"description": "Ajusta o volume do sistema quando o streamer pede (ex: abaixa a música, aumenta o som). delta negativo abaixa, positivo aumenta.",
+			"parameters": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"delta": map[string]any{"type": "integer", "description": "Variação em porcentagem, ex: -20 pra abaixar, 20 pra aumentar"},
+				},
+				"required": []string{"delta"},
+			},
+		},
+	}
+}
+
+// musicToolDef: ferramenta de controle de música.
+func musicToolDef() map[string]any {
+	return map[string]any{
+		"type": "function",
+		"function": map[string]any{
+			"name":        "controlar_musica",
+			"description": "Controla a música tocando quando o streamer pede (pausar, tocar, próxima, anterior).",
+			"parameters": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"action": map[string]any{"type": "string", "enum": []string{"play", "pause", "play-pause", "next", "previous"}},
+				},
+				"required": []string{"action"},
+			},
+		},
+	}
+}
+
 // searchTool descreve a ferramenta de busca pro modelo.
 func searchToolDef() map[string]any {
 	return map[string]any{
@@ -153,7 +189,7 @@ func (c *Client) Think(userText string) (string, error) {
 			"max_tokens": 150,
 		}
 		if c.search != nil && c.search.Enabled() {
-			reqBody["tools"] = []any{searchToolDef()}
+			reqBody["tools"] = []any{searchToolDef(), volumeToolDef(), musicToolDef()}
 		}
 		body, _ := json.Marshal(reqBody)
 
@@ -192,14 +228,35 @@ func (c *Client) Think(userText string) (string, error) {
 		// modelo pediu busca(s): registra a intenção e executa cada uma
 		msgs = append(msgs, message{Role: "assistant", ToolCalls: m.ToolCalls})
 		for _, tc := range m.ToolCalls {
-			var args struct {
-				Query string `json:"query"`
-			}
-			json.Unmarshal([]byte(tc.Function.Arguments), &args)
-			log.Printf("[busca] %s", args.Query)
-			result, err := c.search.Search(args.Query)
-			if err != nil {
-				result = "busca falhou: " + err.Error()
+			var result string
+			switch tc.Function.Name {
+			case "buscar_web":
+				var args struct {
+					Query string `json:"query"`
+				}
+				json.Unmarshal([]byte(tc.Function.Arguments), &args)
+				log.Printf("[busca] %s", args.Query)
+				r, err := c.search.Search(args.Query)
+				if err != nil {
+					r = "busca falhou: " + err.Error()
+				}
+				result = r
+			case "ajustar_volume":
+				var args struct {
+					Delta int `json:"delta"`
+				}
+				json.Unmarshal([]byte(tc.Function.Arguments), &args)
+				log.Printf("[volume] delta=%d", args.Delta)
+				result = tools.SetVolume(args.Delta, false)
+			case "controlar_musica":
+				var args struct {
+					Action string `json:"action"`
+				}
+				json.Unmarshal([]byte(tc.Function.Arguments), &args)
+				log.Printf("[música] %s", args.Action)
+				result = tools.MusicControl(args.Action)
+			default:
+				result = "ferramenta desconhecida"
 			}
 			msgs = append(msgs, message{Role: "tool", ToolCallID: tc.ID, Content: result})
 		}
